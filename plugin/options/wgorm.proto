@@ -1,0 +1,56 @@
+syntax = "proto2";
+
+package wgorm;
+
+import "google/protobuf/descriptor.proto";
+
+// Currently no file options
+extend google.protobuf.FileOptions {
+    optional WGormFileOptions file_opts = 99432;
+}
+
+message WGormFileOptions {
+}
+
+// Validation rules applied at the message level
+extend google.protobuf.MessageOptions {
+    // ormable will cause orm code to be generated for this message/object
+    optional WGormMessageOptions opts = 99432;
+}
+
+message WGormMessageOptions {
+    required bool model = 1;
+    optional string table = 2;
+    optional bool migrate = 3;
+}
+
+// Field level specifications
+extend google.protobuf.FieldOptions {
+    optional WGormFieldOptions field = 99432;
+}
+
+message WGormFieldOptions {
+    optional WGormTag tag = 1;
+}
+
+message WGormTag {
+    optional string gorm = 3;
+}
+
+// To be used in (leiu of) the interceptor
+extend google.protobuf.ServiceOptions {
+    optional AutoServerOptions server = 99432;
+}
+
+message AutoServerOptions {
+    optional bool autogen = 1;
+    optional bool txn_middleware = 2;
+}
+
+extend google.protobuf.MethodOptions {
+    optional MethodOptions method = 99432;
+}
+
+message MethodOptions {
+    optional string object_type = 1;
+}

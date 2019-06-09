@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package main;
+
+import "github.com/cjp2600/protoc-gen-wgorm/plugin/options/wgorm.proto";
+import "google/protobuf/timestamp.proto";
+import "github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis/google/api/annotations.proto";
+
+
+service UserService {
+
+    rpc Version (Empty) returns (VersionResponse) {
+        option (google.api.http) = {
+            get: "/api/v1/user/version"
+         };
+    }
+
+}
+
+message Empty {
+}
+
+message VersionResponse {
+    int32 status = 1;
+    string version = 2;
+}
+
+message User {
+    // определяем сообщение как модель
+    option (wgorm.opts) = {
+         model: true
+     };
+
+    string id = 1;
+
+    oneof activeField {
+        bool active = 2;
+    }
+
+    string name = 3;
+    string description = 4;
+    string logo = 5;
+    string siteCountryCode = 6;
+    string siteCountryName = 7;
+
+}
