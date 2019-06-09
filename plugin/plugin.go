@@ -15,10 +15,11 @@ type WGPlugin struct {
 	*generator.Generator
 	generator.PluginImports
 
-	EmptyFiles     []string
-	currentPackage string
-	currentFile    *generator.FileDescriptor
-	Entities       []string
+	EmptyFiles      []string
+	currentPackage  string
+	currentFile     *generator.FileDescriptor
+	Entities        []string
+	PrivateEntities map[string]PrivateEntity
 
 	// build options
 	Migrate bool
@@ -31,6 +32,12 @@ type WGPlugin struct {
 
 	// imports
 	useTime bool
+}
+
+type PrivateEntity struct {
+	name    string
+	items   []*descriptor.FieldDescriptorProto
+	message *generator.Descriptor
 }
 
 var ServiceName string
@@ -95,6 +102,8 @@ func (w *WGPlugin) Init(gen *generator.Generator) {
 }
 
 func (w *WGPlugin) Generate(file *generator.FileDescriptor) {
+	w.PrivateEntities = make(map[string]PrivateEntity)
+
 	w.localName = generator.FileName(file)
 	ServiceName = w.GetServiceName(file)
 	w.generateGlobalVariables()
@@ -113,8 +122,17 @@ func (w *WGPlugin) Generate(file *generator.FileDescriptor) {
 			}
 		}
 	}
+	for _, msg := range file.Messages() {
+		name := w.generateModelName(msg.GetName())
+		if val, ok := w.PrivateEntities[name]; ok {
+			val.items = msg.GetField()
+			w.PrivateEntities[name] = val
+		}
+	}
+
 	// generate connection methods
 	w.generateConnectionMethods()
+	w.generatePrivateEntities()
 }
 
 func (w *WGPlugin) getFieldOptions(field *descriptor.FieldDescriptorProto) *wgrom.WGormFieldOptions {
@@ -352,6 +370,7 @@ func (w *WGPlugin) generateModelStructures(message *generator.Descriptor, name s
 	if ok {
 		if table := opt.GetMerge(); len(table) > 0 {
 			w.P(w.generateModelName(table))
+			w.PrivateEntities[w.generateModelName(table)] = PrivateEntity{name: name, message: message}
 		}
 	}
 
@@ -562,6 +581,24 @@ func (w *WGPlugin) GenerateTableName(msg *generator.Descriptor) {
 			tableName = table
 			w.P(`return "`, tableName, `"`)
 			w.P(`}`)
+		}
+	}
+}
+
+func (w *WGPlugin) generatePrivateEntities() {
+	if len(w.PrivateEntities) > 0 {
+		for key, value := range w.PrivateEntities {
+			w.P(``)
+			w.P(`// Merge - merge private structure (`, value.name, `)`)
+			w.P(`func (resp *`, value.name, `) Merge (e *`, key, `) *`, value.name, ` {`)
+			for _, field := range value.items {
+				bomwgromFieldsield := w.getFieldOptions(field)
+				w.ToGormFields(field, value.message, bomwgromFieldsield)
+			}
+			w.P(`return resp`)
+			w.P(`}`)
+			w.Out()
+			w.P(``)
 		}
 	}
 }
