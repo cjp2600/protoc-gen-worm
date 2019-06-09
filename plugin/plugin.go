@@ -102,7 +102,8 @@ func (w *WGPlugin) Generate(file *generator.FileDescriptor) {
 		if wgormMessage, ok := w.getMessageOptions(msg); ok {
 			name := w.generateModelName(msg.GetName())
 			w.toPB(msg)
-			w.ToGorm(msg)
+			w.toGorm(msg)
+			w.GenerateTableName(msg)
 			if wgormMessage.GetModel() {
 				w.generateModelStructures(msg, name)
 			}
@@ -300,7 +301,7 @@ func (w *WGPlugin) generateModelStructures(message *generator.Descriptor, name s
 			m, _ := w.goMapTypeCustomGorm(nil, field)
 			w.P(fieldName, ` `, m.GoType, tagString)
 		} else if (field.IsMessage() && !gogoproto.IsCustomType(field) && !gogoproto.IsStdType(field)) || w.IsGroup(field) {
-			if strings.ToLower(goTyp) == "*timestamw.timestamp" {
+			if strings.ToLower(goTyp) == "*timestamp.timestamp" {
 				w.P(fieldName, ` time.Time`, tagString)
 				w.useTime = true
 			} else {
@@ -328,7 +329,7 @@ func (w *WGPlugin) toPB(message *generator.Descriptor) {
 	w.P(``)
 }
 
-func (w *WGPlugin) ToGorm(message *generator.Descriptor) {
+func (w *WGPlugin) toGorm(message *generator.Descriptor) {
 	w.In()
 	mName := w.generateModelName(message.GetName())
 	w.P(`func (e *`, message.GetName(), `) ToGorm() *`, mName, ` {`)
@@ -368,7 +369,7 @@ func (w *WGPlugin) ToGormFields(field *descriptor.FieldDescriptorProto, message 
 		w.P(`}`)
 		w.P(`resp.`, fieldName, ` = tt`, fieldName)
 	} else if (field.IsMessage() && !gogoproto.IsCustomType(field) && !gogoproto.IsStdType(field)) || w.IsGroup(field) {
-		if strings.ToLower(goTyp) == "*timestamw.timestamp" {
+		if strings.ToLower(goTyp) == "*timestamp.timestamp" {
 			w.useTime = true
 			w.P(`// create time object`)
 			w.P(`ut`, fieldName, ` := time.Unix(e.`, fieldName, `.GetSeconds(), int64(e.`, fieldName, `.GetNanos()))`)
@@ -437,7 +438,7 @@ func (w *WGPlugin) ToPBFields(field *descriptor.FieldDescriptorProto, message *g
 		w.P(`}`)
 		w.P(`resp.`, fieldName, ` = tt`, fieldName)
 	} else if (field.IsMessage() && !gogoproto.IsCustomType(field) && !gogoproto.IsStdType(field)) || w.IsGroup(field) {
-		if strings.ToLower(goTyp) == "*timestamw.timestamp" {
+		if strings.ToLower(goTyp) == "*timestamp.timestamp" {
 			w.P(`ptap`, fieldName, `, _ := ptypes.TimestampProto(e.`, fieldName, `)`)
 			w.useTime = true
 			w.P(`resp.`, fieldName, ` = ptap`, fieldName)
@@ -473,4 +474,19 @@ func (w *WGPlugin) ToPBFields(field *descriptor.FieldDescriptorProto, message *g
 		}
 	}
 	w.Out()
+}
+
+func (w *WGPlugin) GenerateTableName(msg *generator.Descriptor) {
+	var tableName string
+	mName := w.generateModelName(msg.GetName())
+	w.P(`func (`, mName, `) TableName() string {`)
+	message, ok := w.getMessageOptions(msg)
+	if ok {
+		tableName = strings.ToLower(msg.GetName())
+		if table := message.GetTable(); len(table) > 0 {
+			tableName = table
+		}
+	}
+	w.P(`return "`, tableName, `"`)
+	w.P(`}`)
 }

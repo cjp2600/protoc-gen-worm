@@ -7,6 +7,6 @@ import (
 
 func main() {
 	wg := &plugin.WGPlugin{}
-	response := command.GeneratePlugin(command.Read(), wg, ".pb.wg.go")
+	response := command.GeneratePlugin(command.Read(), wg, ".pb.wgorm.go")
 	command.Write(response)
 }
