@@ -131,6 +131,63 @@ func (w *WGPlugin) getFieldOptions(field *descriptor.FieldDescriptorProto) *wgro
 	return opts
 }
 
+func (w *WGPlugin) goMapTypeCustomPB(d *generator.Descriptor, field *descriptor.FieldDescriptorProto) (*generator.GoMapDescriptor, bool) {
+	var isMessage = false
+	if d == nil {
+		byName := w.ObjectNamed(field.GetTypeName())
+		desc, ok := byName.(*generator.Descriptor)
+		if byName == nil || !ok || !desc.GetOptions().GetMapEntry() {
+			w.Fail(fmt.Sprintf("field %s is not a map", field.GetTypeName()))
+			return nil, false
+		}
+		d = desc
+	}
+
+	m := &generator.GoMapDescriptor{
+		KeyField:   d.Field[0],
+		ValueField: d.Field[1],
+	}
+
+	// Figure out the Go types and tags for the key and value types.
+	m.KeyAliasField, m.ValueAliasField = w.GetMapKeyField(field, m.KeyField), w.GetMapValueField(field, m.ValueField)
+	keyType, _ := w.GoType(d, m.KeyAliasField)
+	valType, _ := w.GoType(d, m.ValueAliasField)
+
+	// We don't use stars, except for message-typed values.
+	// Message and enum types are the only two possibly foreign types used in maps,
+	// so record their use. They are not permitted as map keys.
+	keyType = strings.TrimPrefix(keyType, "*")
+	switch *m.ValueAliasField.Type {
+	case descriptor.FieldDescriptorProto_TYPE_ENUM:
+		valType = strings.TrimPrefix(valType, "*")
+		w.RecordTypeUse(m.ValueAliasField.GetTypeName())
+	case descriptor.FieldDescriptorProto_TYPE_MESSAGE:
+		if !gogoproto.IsNullable(m.ValueAliasField) {
+			valType = strings.TrimPrefix(valType, "*")
+		}
+		if !gogoproto.IsStdType(m.ValueAliasField) && !gogoproto.IsCustomType(field) && !gogoproto.IsCastType(field) {
+			isMessage = true
+			w.RecordTypeUse(m.ValueAliasField.GetTypeName())
+		}
+	default:
+		if gogoproto.IsCustomType(m.ValueAliasField) {
+			if !gogoproto.IsNullable(m.ValueAliasField) {
+
+				valType = strings.TrimPrefix(valType, "*")
+			}
+			if !gogoproto.IsStdType(field) {
+				w.RecordTypeUse(m.ValueAliasField.GetTypeName())
+			}
+		} else {
+
+			valType = strings.TrimPrefix(valType, "*")
+		}
+	}
+
+	m.GoType = fmt.Sprintf("map[%s]%s", keyType, valType)
+	return m, isMessage
+}
+
 func (w *WGPlugin) goMapTypeCustomGorm(d *generator.Descriptor, field *descriptor.FieldDescriptorProto) (*generator.GoMapDescriptor, bool) {
 	var isMessage = false
 	if d == nil {
@@ -420,7 +477,7 @@ func (w *WGPlugin) ToPBFields(field *descriptor.FieldDescriptorProto, message *g
 	goTyp, _ := w.GoType(message, field)
 	w.In()
 	if w.IsMap(field) {
-		m, ism := w.goMapTypeCustomGorm(nil, field)
+		m, ism := w.goMapTypeCustomPB(nil, field)
 		_, keyField, keyAliasField := m.GoType, m.KeyField, m.KeyAliasField
 		keygoTyp, _ := w.GoType(nil, keyField)
 		keygoTyp = strings.Replace(keygoTyp, "*", "", 1)
