@@ -1,30 +1,198 @@
 syntax = "proto3";
 
-package main;
+package user;
 
-import "github.com/cjp2600/protoc-gen-wgorm/plugin/options/wgorm.proto";
 import "google/protobuf/timestamp.proto";
 import "github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis/google/api/annotations.proto";
+import "github.com/cjp2600/protoc-gen-wgorm/plugin/options/wgorm.proto";
+import "github.com/envoyproxy/protoc-gen-validate/validate/validate.proto";
 
+// role name existing in the system
+enum RoleName {
+    pupil = 0; // the main user type is set by default, type is issued for customers of the service who perform training
+    teacher = 1; // type of teacher
+    admin = 4; // type of admin
+}
 
+// service responsible for working with users and authorization tokens
 service UserService {
 
-    rpc Version (Empty) returns (VersionResponse) {
+    // Registration Pupil - creating a pupil in the system
+    rpc PupilRegistration (PupilRegistrationRequest) returns (UserResponse) {
         option (google.api.http) = {
-            get: "/api/v1/user/version"
+            post: "/api/v1/users/registration/pupil"
+            body: "*"
+         };
+    }
+
+    // Validate Token - token validation method
+    rpc ValidateToken (AccessTokenRequest) returns (UserResponse) {
+        option (google.api.http) = {
+            post: "/api/v1/users/token/validate"
+            body: "*"
+         };
+    }
+
+    // Refresh Token - token update
+    rpc RefreshToken (RefreshTokenRequest) returns (TokenResponse) {
+        option (google.api.http) = {
+            post: "/api/v1/users/refresh"
+            body: "*"
+         };
+    }
+
+    // All Users - getting user list
+    rpc GetAllUsers (UserListQueryRequest) returns (UsersResponse) {
+        option (google.api.http) = {
+            get: "/api/v1/users"
+         };
+    }
+
+    // Auth - authorization
+    rpc Auth (AuthRequest) returns (TokenResponse) {
+        option (google.api.http) = {
+            post: "/api/v1/users/login"
+            body: "*"
+         };
+    }
+
+    // Current User - get current user by passed token
+    rpc CurrentUser (Empty) returns (UserResponse) {
+        option (google.api.http) = {
+            get: "/api/v1/users/current"
+         };
+    }
+
+    // Logout - exit and delete token
+    rpc Logout (Empty) returns (EmptyResponse) {
+        option (google.api.http) = {
+            post: "/api/v1/users/logout"
+            body: "*"
          };
     }
 
 }
 
+enum SortTypes {
+    asc = 0;
+    desc = 1;
+}
+
+
+message UserListSortFields {
+    enum Sort {
+        id = 0;
+        firstName = 1;
+        lastName = 2;
+        secondName = 3;
+        createdAt = 4;
+        updatedAt = 5;
+    }
+}
+
 message Empty {
 }
 
-message VersionResponse {
+message UsersResponse {
     int32 status = 1;
-    string version = 2;
+    string message = 2;
+    repeated User data = 3;
+    Pagination pagination = 4;
 }
 
+message Pagination {
+    int32 totalCount = 1;
+    int32 totalPages = 2;
+    int32 currentPage = 3;
+    int32 size = 4;
+}
+
+message UserListSortQuery {
+    UserListSortFields.Sort field = 1;
+    SortTypes type = 2;
+}
+
+message UserListQueryRequest {
+    int32 page = 1;
+    int32 size = 2;
+    UserListSortQuery sort = 3;
+}
+
+message AccessTokenRequest {
+    string accessToken = 1 [(validate.rules).string.min_len = 1];
+}
+
+message RefreshTokenRequest {
+    string refreshToken = 1 [(validate.rules).string.min_len = 1];
+}
+
+message AuthRequest {
+    string email = 1 [(validate.rules).string.email = true];
+    string password = 2 [(validate.rules).string.min_len = 6];
+}
+
+message TokenResponse {
+    int32 status = 1;
+    string message = 2;
+    Token data = 3;
+}
+
+// empty request
+message EmptyRequest {
+}
+
+// empty response
+message EmptyResponse {
+    int32 status = 1;
+    string message = 2;
+}
+
+// user base response model
+message UserResponse {
+    int32 status = 1;
+    string message = 2;
+    User data = 3;
+}
+
+// role model
+message Role {
+
+    option (wgorm.opts) = {
+          model: true
+          migrate: true
+    };
+
+    string id = 1 [(wgorm.field).tag = {gorm: "type:uuid;primary_key"}];
+    RoleName name = 2;
+    repeated Permission permissions = 3 [(wgorm.field).tag = {gorm: "foreignkey:RoleId;association_foreignkey:Id"}];
+}
+
+// permission model
+message Permission {
+
+    option (wgorm.opts) = {
+          model: true
+          migrate: true
+    };
+
+    string id = 1 [(wgorm.field).tag = {gorm: "type:uuid;primary_key"}];
+
+    string service = 3;
+    bool create = 4;
+    bool read = 5;
+    bool update = 6;
+    bool delete = 7;
+}
+
+message PupilRegistrationRequest {
+    string firstName = 3 [(validate.rules).string.min_len = 1];
+    string lastName = 4;
+    string phone = 6;
+    string password = 11 [(validate.rules).string.min_len = 6];
+    string email = 7 [(validate.rules).string.email = true];
+}
+
+// display user model
 message User {
 
     option (wgorm.opts) = {
@@ -32,15 +200,32 @@ message User {
           migrate: true
     };
 
-    string id = 1 [(wgorm.field).tag = {gorm: "type:varchar(100)"}];
+    string id = 1 [(wgorm.field).tag = {gorm: "type:uuid;primary_key"}];
 
-    oneof activeField {
-        bool active = 2;
-    }
+    bool active = 2; // activity flag
+    string firstName = 3; //
+    string lastName = 4;
+    string phone = 6;
+    string email = 7;
+    Role role = 9; // the role to which the user is attached
+    bool emailConfirm = 10;
 
-    string name = 3;
-    string description = 4;
-    string logo = 5;
-    string siteCountryCode = 6;
-    string siteCountryName = 7;
+    google.protobuf.Timestamp createdAt = 13;
+    google.protobuf.Timestamp updatedAt = 14;
+}
+
+// token model
+message Token {
+
+    option (wgorm.opts) = {
+          model: true
+          migrate: true
+    };
+
+    string id = 1 [(wgorm.field).tag = {gorm: "type:uuid;primary_key"}];
+    string userId = 2 [(wgorm.field).tag = {gorm: "type:uuid"}];
+    string accessToken = 3;
+    string refreshToken = 4;
+    google.protobuf.Timestamp expireAccessToken = 5;
+    google.protobuf.Timestamp expireRefreshToken = 6;
 }

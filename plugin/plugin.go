@@ -360,7 +360,7 @@ func (w *WGPlugin) ToGormFields(field *descriptor.FieldDescriptorProto, message 
 		w.P(`for k, v := range e.`, fieldName, ` {`)
 		w.In()
 		if ism {
-			w.P(`tt`, fieldName, `[k] = v.ToMongo()`)
+			w.P(`tt`, fieldName, `[k] = v.ToGorm()`)
 		} else {
 			w.P(`tt`, fieldName, `[k] = v`)
 		}
@@ -382,7 +382,7 @@ func (w *WGPlugin) ToGormFields(field *descriptor.FieldDescriptorProto, message 
 				w.P(`if len(e.`, fieldName, `) > 0 {`)
 				w.P(`for _, b := range `, `e.`, fieldName, `{`)
 				w.P(`if b != nil {`)
-				w.P(`sub`, fieldName, ` = append(sub`, fieldName, `, b.ToMongo())`)
+				w.P(`sub`, fieldName, ` = append(sub`, fieldName, `, b.ToGorm())`)
 				w.P(`}`)
 				w.P(`}`)
 				w.P(`}`)
@@ -391,7 +391,7 @@ func (w *WGPlugin) ToGormFields(field *descriptor.FieldDescriptorProto, message 
 			} else {
 				w.P(`// create single mongo`)
 				w.P(`if e.`, fieldName, ` != nil {`)
-				w.P(`resp.`, fieldName, ` = e.`, fieldName, `.ToMongo()`)
+				w.P(`resp.`, fieldName, ` = e.`, fieldName, `.ToGorm()`)
 				w.P(`}`)
 			}
 		} else {
