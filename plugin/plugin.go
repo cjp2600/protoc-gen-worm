@@ -347,6 +347,14 @@ func (w *WGPlugin) CreateDataStoreStructure(name string) {
 func (w *WGPlugin) generateModelStructures(message *generator.Descriptor, name string) {
 	w.P(`// create gorm model from protobuf (`, name, `)`)
 	w.P(`type `, name, ` struct {`)
+
+	opt, ok := w.getMessageOptions(message)
+	if ok {
+		if table := opt.GetMerge(); len(table) > 0 {
+			w.P(w.generateModelName(table))
+		}
+	}
+
 	for _, field := range message.GetField() {
 		fieldName := field.GetName()
 		oneOf := field.OneofIndex != nil
@@ -546,14 +554,14 @@ func (w *WGPlugin) ToPBFields(field *descriptor.FieldDescriptorProto, message *g
 func (w *WGPlugin) GenerateTableName(msg *generator.Descriptor) {
 	var tableName string
 	mName := w.generateModelName(msg.GetName())
-	w.P(`func (`, mName, `) TableName() string {`)
 	message, ok := w.getMessageOptions(msg)
 	if ok {
 		tableName = strings.ToLower(msg.GetName())
-		if table := message.GetTable(); len(table) > 0 {
+		if table := message.GetTable(); len(table) > 0 && message.GetMigrate() {
+			w.P(`func (`, mName, `) TableName() string {`)
 			tableName = table
+			w.P(`return "`, tableName, `"`)
+			w.P(`}`)
 		}
 	}
-	w.P(`return "`, tableName, `"`)
-	w.P(`}`)
 }

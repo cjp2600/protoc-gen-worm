@@ -192,12 +192,21 @@ message PupilRegistrationRequest {
     string email = 7 [(validate.rules).string.email = true];
 }
 
+message PrivateUser {
+    option (wgorm.opts) = {
+          model: true
+    };
+
+    string password = 15;
+}
+
 // display user model
 message User {
 
     option (wgorm.opts) = {
           model: true
           migrate: true
+          merge: "PrivateUser"
     };
 
     string id = 1 [(wgorm.field).tag = {gorm: "type:uuid;primary_key"}];

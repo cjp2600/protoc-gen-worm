@@ -21,6 +21,7 @@ extend google.protobuf.MessageOptions {
 message WGormMessageOptions {
     required bool model = 1;
     optional string table = 2;
+    optional string merge = 4;
     optional bool migrate = 3;
 }
 
