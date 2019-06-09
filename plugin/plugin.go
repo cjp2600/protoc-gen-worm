@@ -590,12 +590,13 @@ func (w *WGPlugin) generatePrivateEntities() {
 		for key, value := range w.PrivateEntities {
 			w.P(``)
 			w.P(`// Merge - merge private structure (`, value.name, `)`)
-			w.P(`func (resp *`, value.name, `) Merge (e *`, key, `) *`, value.name, ` {`)
+			w.P(`func (e *`, value.name, `) Merge (m *`, key, `) *`, value.name, ` {`)
 			for _, field := range value.items {
-				bomwgromFieldsield := w.getFieldOptions(field)
-				w.ToPBFields(field, value.message, bomwgromFieldsield)
+				fieldName := field.GetName()
+				fieldName = generator.CamelCase(fieldName)
+				w.P(`e.`, fieldName, ` = m.`, fieldName)
 			}
-			w.P(`return resp`)
+			w.P(`return e`)
 			w.P(`}`)
 			w.Out()
 			w.P(``)
