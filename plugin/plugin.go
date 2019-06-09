@@ -101,6 +101,8 @@ func (w *WGPlugin) Generate(file *generator.FileDescriptor) {
 	for _, msg := range file.Messages() {
 		if wgormMessage, ok := w.getMessageOptions(msg); ok {
 			name := w.generateModelName(msg.GetName())
+			w.toPB(msg)
+			w.ToGorm(msg)
 			if wgormMessage.GetModel() {
 				w.generateModelStructures(msg, name)
 			}
@@ -258,12 +260,13 @@ func (w *WGPlugin) CreateDataStoreStructure(name string) {
 	w.P(`store.DB.DB().SetMaxIdleConns(maxConnection)`)
 	w.P(`}`)
 	w.P(`store.DB.LogMode(logging)`)
+	w.P(`store.migrate()`)
 	w.P(`return store, err`)
 	w.P(`}`)
 	w.P()
-	w.P(`func (d *`, name, `) Migrate() {`)
+	w.P(`// Migrate - gorm AutoMigrate`)
+	w.P(`func (d *`, name, `) migrate() {`)
 	if len(w.Entities) > 0 {
-		w.P(`// gorm AutoMigrate`)
 		w.P(`d.DB.AutoMigrate(`)
 		for _, enitity := range w.Entities {
 			w.P(`&`, enitity, `{},`)
@@ -282,24 +285,192 @@ func (w *WGPlugin) generateModelStructures(message *generator.Descriptor, name s
 		goTyp, _ := w.GoType(message, field)
 		fieldName = generator.CamelCase(fieldName)
 		wgromField := w.getFieldOptions(field)
-		if wgromField != nil {
-			// skip field
+		var tagString string
+		if wgromField != nil && wgromField.Tag != nil {
+			gormTag := wgromField.Tag.GetGorm()
+			if len(gormTag) > 0 {
+				tagString = "`"
+				tagString = tagString + `gorm:"` + gormTag + `"`
+				tagString = tagString + "`"
+			}
 		}
 		if oneOf {
-			w.P(fieldName, ` *`, goTyp)
+			w.P(fieldName, ` `, goTyp, tagString)
 		} else if w.IsMap(field) {
 			m, _ := w.goMapTypeCustomGorm(nil, field)
-			w.P(fieldName, ` `, m.GoType)
+			w.P(fieldName, ` `, m.GoType, tagString)
 		} else if (field.IsMessage() && !gogoproto.IsCustomType(field) && !gogoproto.IsStdType(field)) || w.IsGroup(field) {
 			if strings.ToLower(goTyp) == "*timestamw.timestamp" {
-				w.P(fieldName, ` time.Time`)
+				w.P(fieldName, ` time.Time`, tagString)
 				w.useTime = true
 			} else {
-				w.P(fieldName, ` `, w.generateModelName(goTyp))
+				w.P(fieldName, ` `, w.generateModelName(goTyp), tagString)
 			}
 		} else {
-			w.P(fieldName, ` `, goTyp)
+			w.P(fieldName, ` `, goTyp, tagString)
 		}
 	}
 	w.P(`}`)
+}
+
+func (w *WGPlugin) toPB(message *generator.Descriptor) {
+	w.In()
+	mName := w.generateModelName(message.GetName())
+	w.P(`func (e *`, mName, `) ToPB() *`, message.GetName(), ` {`)
+	w.P(`var resp `, message.GetName())
+	for _, field := range message.GetField() {
+		bomField := w.getFieldOptions(field)
+		w.ToPBFields(field, message, bomField)
+	}
+	w.P(`return &resp`)
+	w.P(`}`)
+	w.Out()
+	w.P(``)
+}
+
+func (w *WGPlugin) ToGorm(message *generator.Descriptor) {
+	w.In()
+	mName := w.generateModelName(message.GetName())
+	w.P(`func (e *`, message.GetName(), `) ToGorm() *`, mName, ` {`)
+	w.P(`var resp `, mName)
+	for _, field := range message.GetField() {
+		bomwgromFieldsield := w.getFieldOptions(field)
+		w.ToGormFields(field, message, bomwgromFieldsield)
+	}
+	w.P(`return &resp`)
+	w.P(`}`)
+	w.Out()
+	w.P(``)
+}
+
+func (w *WGPlugin) ToGormFields(field *descriptor.FieldDescriptorProto, message *generator.Descriptor, bomField *wgrom.WGormFieldOptions) {
+	fieldName := field.GetName()
+	fieldName = generator.CamelCase(fieldName)
+	goTyp, _ := w.GoType(message, field)
+	oneof := field.OneofIndex != nil
+	w.In()
+	if w.IsMap(field) {
+		m, ism := w.goMapTypeCustomGorm(nil, field)
+		_, keyField, keyAliasField := m.GoType, m.KeyField, m.KeyAliasField
+		keygoTyp, _ := w.GoType(nil, keyField)
+		keygoTyp = strings.Replace(keygoTyp, "*", "", 1)
+		keygoAliasTyp, _ := w.GoType(nil, keyAliasField)
+		keygoAliasTyp = strings.Replace(keygoAliasTyp, "*", "", 1)
+		w.P(`tt`, fieldName, ` := make(`, m.GoType, `)`)
+		w.P(`for k, v := range e.`, fieldName, ` {`)
+		w.In()
+		if ism {
+			w.P(`tt`, fieldName, `[k] = v.ToMongo()`)
+		} else {
+			w.P(`tt`, fieldName, `[k] = v`)
+		}
+		w.Out()
+		w.P(`}`)
+		w.P(`resp.`, fieldName, ` = tt`, fieldName)
+	} else if (field.IsMessage() && !gogoproto.IsCustomType(field) && !gogoproto.IsStdType(field)) || w.IsGroup(field) {
+		if strings.ToLower(goTyp) == "*timestamw.timestamp" {
+			w.useTime = true
+			w.P(`// create time object`)
+			w.P(`ut`, fieldName, ` := time.Unix(e.`, fieldName, `.GetSeconds(), int64(e.`, fieldName, `.GetNanos()))`)
+			w.P(`resp.`, fieldName, ` = ut`, fieldName)
+		} else if field.IsMessage() {
+			repeated := field.IsRepeated()
+			if repeated {
+				w.P(`// create nested mongo`)
+				w.P(`var sub`, fieldName, w.generateModelName(goTyp))
+				w.P(`if e.`, fieldName, ` != nil {`)
+				w.P(`if len(e.`, fieldName, `) > 0 {`)
+				w.P(`for _, b := range `, `e.`, fieldName, `{`)
+				w.P(`if b != nil {`)
+				w.P(`sub`, fieldName, ` = append(sub`, fieldName, `, b.ToMongo())`)
+				w.P(`}`)
+				w.P(`}`)
+				w.P(`}`)
+				w.P(`}`)
+				w.P(`resp.`, fieldName, ` = sub`, fieldName)
+			} else {
+				w.P(`// create single mongo`)
+				w.P(`if e.`, fieldName, ` != nil {`)
+				w.P(`resp.`, fieldName, ` = e.`, fieldName, `.ToMongo()`)
+				w.P(`}`)
+			}
+		} else {
+			w.P(`resp.`, fieldName, ` = e.`, fieldName)
+		}
+	} else {
+		if oneof {
+			sourceName := w.GetFieldName(message, field)
+			w.P(`// oneof link`)
+			w.P(`if e.Get`, sourceName, `() != nil {`)
+			w.P(`resp.`, fieldName, ` = e.Get`, fieldName, `()`)
+			w.P(`}`)
+			w.P(``)
+		} else {
+			w.P(`resp.`, fieldName, ` = e.`, fieldName)
+		}
+	}
+	w.Out()
+}
+
+func (w *WGPlugin) ToPBFields(field *descriptor.FieldDescriptorProto, message *generator.Descriptor, wGormFieldOptions *wgrom.WGormFieldOptions) {
+	fieldName := field.GetName()
+	fieldName = generator.CamelCase(fieldName)
+	oneof := field.OneofIndex != nil
+	goTyp, _ := w.GoType(message, field)
+	w.In()
+	if w.IsMap(field) {
+		m, ism := w.goMapTypeCustomGorm(nil, field)
+		_, keyField, keyAliasField := m.GoType, m.KeyField, m.KeyAliasField
+		keygoTyp, _ := w.GoType(nil, keyField)
+		keygoTyp = strings.Replace(keygoTyp, "*", "", 1)
+		keygoAliasTyp, _ := w.GoType(nil, keyAliasField)
+		keygoAliasTyp = strings.Replace(keygoAliasTyp, "*", "", 1)
+		w.P(`tt`, fieldName, ` := make(`, m.GoType, `)`)
+		w.P(`for k, v := range e.`, fieldName, ` {`)
+		w.In()
+		if ism {
+			w.P(`tt`, fieldName, `[k] = v.ToPB()`)
+		} else {
+			w.P(`tt`, fieldName, `[k] = v`)
+		}
+		w.Out()
+		w.P(`}`)
+		w.P(`resp.`, fieldName, ` = tt`, fieldName)
+	} else if (field.IsMessage() && !gogoproto.IsCustomType(field) && !gogoproto.IsStdType(field)) || w.IsGroup(field) {
+		if strings.ToLower(goTyp) == "*timestamw.timestamp" {
+			w.P(`ptap`, fieldName, `, _ := ptypes.TimestampProto(e.`, fieldName, `)`)
+			w.useTime = true
+			w.P(`resp.`, fieldName, ` = ptap`, fieldName)
+		} else if field.IsMessage() {
+			repeated := field.IsRepeated()
+			if repeated {
+				w.P(`// create nested pb`)
+				w.P(`var sub`, fieldName, goTyp)
+				w.P(`if e.`, fieldName, ` != nil {`)
+				w.P(`if len(e.`, fieldName, `) > 0 {`)
+				w.P(`for _, b := range `, `e.`, fieldName, `{`)
+				w.P(`sub`, fieldName, ` = append(sub`, fieldName, `, b.ToPB())`)
+				w.P(`}`)
+				w.P(`}`)
+				w.P(`}`)
+				w.P(`resp.`, fieldName, ` = sub`, fieldName)
+			} else {
+				w.P(`// create single pb`)
+				w.P(`if e.`, fieldName, ` != nil {`)
+				w.P(`resp.`, fieldName, ` = e.`, fieldName, `.ToPB()`)
+				w.P(`}`)
+			}
+		} else {
+			w.P(`resp.`, fieldName, ` = e.`, fieldName)
+		}
+	} else {
+		if oneof {
+			sourceName := w.GetFieldName(message, field)
+			interfaceName := w.Generator.OneOfTypeName(message, field)
+			w.P(`resp.`, sourceName, ` = &`, interfaceName, `{e.`, fieldName, `}`)
+		} else {
+			w.P(`resp.`, fieldName, ` = e.`, fieldName)
+		}
+	}
+	w.Out()
 }
