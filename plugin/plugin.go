@@ -97,6 +97,7 @@ func (w *WGPlugin) Init(gen *generator.Generator) {
 func (w *WGPlugin) Generate(file *generator.FileDescriptor) {
 	w.localName = generator.FileName(file)
 	ServiceName = w.GetServiceName(file)
+	w.generateGlobalVariables()
 	// generate structures
 	for _, msg := range file.Messages() {
 		if wgormMessage, ok := w.getMessageOptions(msg); ok {
@@ -275,6 +276,11 @@ func (w *WGPlugin) GetServiceName(file *generator.FileDescriptor) string {
 	}
 	return name
 }
+func (w *WGPlugin) generateGlobalVariables() {
+	w.P(`// global gorm variable`)
+	dataStoreStructure := w.nameWithServicePrefix("DB")
+	w.P(`var `, dataStoreStructure, ` *gorm.DB`)
+}
 
 func (w *WGPlugin) generateConnectionMethods() {
 	dataStoreStructure := w.nameWithServicePrefix("DataStore")
@@ -300,10 +306,10 @@ func (w *WGPlugin) generateConnectionMethods() {
 }
 
 func (w *WGPlugin) CreateDataStoreStructure(name string) {
+	db := w.nameWithServicePrefix("DB")
 	w.P()
 	w.P(`// `, name, ` - data store`)
 	w.P(`type `, name, ` struct {`)
-	w.P(`DB *gorm.DB`)
 	w.P(`}`)
 	functionName := "New" + name
 	w.P(`// `, functionName, ` - datastore constructor`)
@@ -313,11 +319,15 @@ func (w *WGPlugin) CreateDataStoreStructure(name string) {
 	w.P(`if err != nil {`)
 	w.P(`return store, err`)
 	w.P(`}`)
-	w.P(`store.DB = db`)
 	w.P(`if maxConnection > 0 {`)
-	w.P(`store.DB.DB().SetMaxIdleConns(maxConnection)`)
+	w.P(`db.DB().SetMaxIdleConns(maxConnection)`)
 	w.P(`}`)
-	w.P(`store.DB.LogMode(logging)`)
+	w.P(`db.LogMode(logging)`)
+	w.P()
+	w.P(`if `, db, ` == nil {`)
+	w.P(db, ` = db`)
+	w.P(`}`)
+	w.P()
 	w.P(`store.migrate()`)
 	w.P(`return store, err`)
 	w.P(`}`)
@@ -325,7 +335,7 @@ func (w *WGPlugin) CreateDataStoreStructure(name string) {
 	w.P(`// Migrate - gorm AutoMigrate`)
 	w.P(`func (d *`, name, `) migrate() {`)
 	if len(w.Entities) > 0 {
-		w.P(`d.DB.AutoMigrate(`)
+		w.P(db, `.AutoMigrate(`)
 		for _, enitity := range w.Entities {
 			w.P(`&`, enitity, `{},`)
 		}
