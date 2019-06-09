@@ -26,12 +26,9 @@ message VersionResponse {
 }
 
 message User {
-    // определяем сообщение как модель
-    option (wgorm.opts) = {
-         model: true
-     };
+    option (wgorm.opts) = { model: true };
 
-    string id = 1;
+    string id = 1 [(wgorm.field).tag = {gorm: "type:varchar(100)"}];
 
     oneof activeField {
         bool active = 2;
@@ -42,5 +39,4 @@ message User {
     string logo = 5;
     string siteCountryCode = 6;
     string siteCountryName = 7;
-
 }

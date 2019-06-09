@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/cjp2600/rotoc-gen-wgorm/plugin"
+	"github.com/cjp2600/protoc-gen-wgorm/plugin"
 	"github.com/gogo/protobuf/vanity/command"
 )
 
