@@ -593,7 +593,7 @@ func (w *WGPlugin) generatePrivateEntities() {
 			w.P(`func (resp *`, value.name, `) Merge (e *`, key, `) *`, value.name, ` {`)
 			for _, field := range value.items {
 				bomwgromFieldsield := w.getFieldOptions(field)
-				w.ToGormFields(field, value.message, bomwgromFieldsield)
+				w.ToPBFields(field, value.message, bomwgromFieldsield)
 			}
 			w.P(`return resp`)
 			w.P(`}`)
