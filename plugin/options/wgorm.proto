@@ -39,6 +39,13 @@ message WGormTag {
     optional string gorm = 3;
 }
 
+message Pagination {
+    required int32 totalCount = 1;
+    required int32 totalPages = 2;
+    required int32 currentPage = 3;
+    required int32 size = 4;
+}
+
 // To be used in (leiu of) the interceptor
 extend google.protobuf.ServiceOptions {
     optional AutoServerOptions server = 99432;
