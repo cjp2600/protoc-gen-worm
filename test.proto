@@ -193,10 +193,6 @@ message PupilRegistrationRequest {
 }
 
 message PrivateUser {
-    option (wgorm.opts) = {
-          model: true
-    };
-
     string password = 15;
 }
 

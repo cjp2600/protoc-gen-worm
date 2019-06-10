@@ -109,21 +109,23 @@ func (w *WGPlugin) Generate(file *generator.FileDescriptor) {
 	w.generateGlobalVariables()
 	// generate structures
 	for _, msg := range file.Messages() {
+
+		name := w.generateModelName(msg.GetName())
+		w.generateModelStructures(msg, name)
+
 		if wgormMessage, ok := w.getMessageOptions(msg); ok {
-			name := w.generateModelName(msg.GetName())
-			w.toPB(msg)
-			w.toGorm(msg)
-			w.GenerateTableName(msg)
 			if wgormMessage.GetModel() {
-				w.generateModelStructures(msg, name)
-			}
-			if wgormMessage.GetMigrate() {
-				w.Entities = append(w.Entities, name)
+				w.toPB(msg)
+				w.toGorm(msg)
+				w.GenerateTableName(msg)
+				if wgormMessage.GetMigrate() {
+					w.Entities = append(w.Entities, name)
+				}
 			}
 		}
 	}
 	for _, msg := range file.Messages() {
-		name := w.generateModelName(msg.GetName())
+		name := strings.Trim(w.generateModelName(msg.GetName()), " ")
 		if val, ok := w.PrivateEntities[name]; ok {
 			val.items = msg.GetField()
 			w.PrivateEntities[name] = val
@@ -369,8 +371,13 @@ func (w *WGPlugin) generateModelStructures(message *generator.Descriptor, name s
 	opt, ok := w.getMessageOptions(message)
 	if ok {
 		if table := opt.GetMerge(); len(table) > 0 {
-			w.P(w.generateModelName(table))
-			w.PrivateEntities[w.generateModelName(table)] = PrivateEntity{name: name, message: message}
+			st := strings.Split(table, ",")
+			if len(st) > 0 {
+				for _, str := range st {
+					w.P(w.generateModelName(str))
+					w.PrivateEntities[strings.Trim(w.generateModelName(str), " ")] = PrivateEntity{name: name, message: message}
+				}
+			}
 		}
 	}
 
@@ -590,7 +597,7 @@ func (w *WGPlugin) generatePrivateEntities() {
 		for key, value := range w.PrivateEntities {
 			w.P(``)
 			w.P(`// Merge - merge private structure (`, value.name, `)`)
-			w.P(`func (e *`, value.name, `) Merge (m *`, key, `) *`, value.name, ` {`)
+			w.P(`func (e *`, value.name, `) Merge`, strings.Trim(key, " "), ` (m *`, key, `) *`, value.name, ` {`)
 			for _, field := range value.items {
 				fieldName := field.GetName()
 				fieldName = generator.CamelCase(fieldName)
