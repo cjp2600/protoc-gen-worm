@@ -185,6 +185,11 @@ message Permission {
 }
 
 message PupilRegistrationRequest {
+    option (wgorm.opts) = {
+          model: true
+          convertTo: "User"
+    };
+
     string firstName = 3 [(validate.rules).string.min_len = 1];
     string lastName = 4;
     string phone = 6;

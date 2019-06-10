@@ -20,6 +20,8 @@ type WGPlugin struct {
 	currentFile     *generator.FileDescriptor
 	Entities        []string
 	PrivateEntities map[string]PrivateEntity
+	ConvertEntities map[string]ConvertEntity
+	Fields          map[string][]*descriptor.FieldDescriptorProto
 
 	// build options
 	Migrate bool
@@ -32,6 +34,12 @@ type WGPlugin struct {
 
 	// imports
 	useTime bool
+}
+
+type ConvertEntity struct {
+	nameFrom string
+	nameTo   string
+	message  *generator.Descriptor
 }
 
 type PrivateEntity struct {
@@ -103,14 +111,17 @@ func (w *WGPlugin) Init(gen *generator.Generator) {
 
 func (w *WGPlugin) Generate(file *generator.FileDescriptor) {
 	w.PrivateEntities = make(map[string]PrivateEntity)
+	w.ConvertEntities = make(map[string]ConvertEntity)
+	w.Fields = make(map[string][]*descriptor.FieldDescriptorProto)
 
 	w.localName = generator.FileName(file)
 	ServiceName = w.GetServiceName(file)
 	w.generateGlobalVariables()
 	// generate structures
 	for _, msg := range file.Messages() {
-
 		name := w.generateModelName(msg.GetName())
+
+		w.setCovertEntities(msg, name)
 		w.generateModelStructures(msg, name)
 
 		if wgormMessage, ok := w.getMessageOptions(msg); ok {
@@ -126,15 +137,16 @@ func (w *WGPlugin) Generate(file *generator.FileDescriptor) {
 	}
 	for _, msg := range file.Messages() {
 		name := strings.Trim(w.generateModelName(msg.GetName()), " ")
+		w.Fields[name] = msg.GetField()
 		if val, ok := w.PrivateEntities[name]; ok {
 			val.items = msg.GetField()
 			w.PrivateEntities[name] = val
 		}
 	}
-
+	// generate merge and covert methods
+	w.generateEntitiesMethods()
 	// generate connection methods
 	w.generateConnectionMethods()
-	w.generatePrivateEntities()
 }
 
 func (w *WGPlugin) getFieldOptions(field *descriptor.FieldDescriptorProto) *wgrom.WGormFieldOptions {
@@ -362,6 +374,25 @@ func (w *WGPlugin) CreateDataStoreStructure(name string) {
 		w.P(`)`)
 	}
 	w.P(`}`)
+}
+
+func (w *WGPlugin) setCovertEntities(message *generator.Descriptor, name string) {
+	opt, ok := w.getMessageOptions(message)
+	if ok {
+		if entity := opt.GetConvertTo(); len(entity) > 0 {
+			st := strings.Split(entity, ",")
+			if len(st) > 0 {
+				for _, str := range st {
+					nameTo := strings.Trim(w.generateModelName(str), " ")
+					w.ConvertEntities[nameTo] = ConvertEntity{
+						nameFrom: name,
+						nameTo:   nameTo,
+						message:  message,
+					}
+				}
+			}
+		}
+	}
 }
 
 func (w *WGPlugin) generateModelStructures(message *generator.Descriptor, name string) {
@@ -592,7 +623,7 @@ func (w *WGPlugin) GenerateTableName(msg *generator.Descriptor) {
 	}
 }
 
-func (w *WGPlugin) generatePrivateEntities() {
+func (w *WGPlugin) generateEntitiesMethods() {
 	if len(w.PrivateEntities) > 0 {
 		for key, value := range w.PrivateEntities {
 			w.P(``)
@@ -604,6 +635,32 @@ func (w *WGPlugin) generatePrivateEntities() {
 				w.P(`e.`, fieldName, ` = m.`, fieldName)
 			}
 			w.P(`return e`)
+			w.P(`}`)
+			w.Out()
+			w.P(``)
+		}
+	}
+
+	if len(w.ConvertEntities) > 0 {
+		for _, value := range w.ConvertEntities {
+			w.P(``)
+			w.P(`// To`, strings.Trim(value.nameTo, " "), ` - convert structure (`, value.nameFrom, ` -> `, value.nameTo, `)`)
+			w.P(`func (e *`, value.nameFrom, `) To`, strings.Trim(value.nameTo, " "), ` () *`, value.nameTo, ` {`)
+			w.P(`var entity *`, value.nameTo)
+			if fieldsFrom, ok := w.Fields[value.nameFrom]; ok {
+				if fieldsTo, ok := w.Fields[value.nameTo]; ok {
+					for _, field := range fieldsFrom {
+						for _, f := range fieldsTo {
+							if field.GetName() == f.GetName() {
+								fieldName := field.GetName()
+								fieldName = generator.CamelCase(fieldName)
+								w.P(`e.`, fieldName, ` = entity.`, fieldName)
+							}
+						}
+					}
+				}
+			}
+			w.P(`return entity`)
 			w.P(`}`)
 			w.Out()
 			w.P(``)

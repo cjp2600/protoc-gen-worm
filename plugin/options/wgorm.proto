@@ -23,6 +23,7 @@ message WGormMessageOptions {
     optional string table = 2;
     optional string merge = 4;
     optional bool migrate = 3;
+    optional string convertTo = 5;
 }
 
 // Field level specifications
