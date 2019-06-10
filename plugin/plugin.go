@@ -654,12 +654,29 @@ func (w *WGPlugin) generateEntitiesMethods() {
 							if field.GetName() == f.GetName() {
 								fieldName := field.GetName()
 								fieldName = generator.CamelCase(fieldName)
-								w.P(`e.`, fieldName, ` = entity.`, fieldName)
+								w.P(`entity.`, fieldName, ` = e.`, fieldName)
 							}
 						}
 					}
 				}
 			}
+
+			for _, pe := range w.PrivateEntities {
+				if pe.name == value.nameTo {
+					for _, f1 := range pe.items {
+						if fieldsFrom, ok := w.Fields[value.nameFrom]; ok {
+							for _, f2 := range fieldsFrom {
+								if f1.GetName() == f2.GetName() {
+									fieldName := f1.GetName()
+									fieldName = generator.CamelCase(fieldName)
+									w.P(`entity.`, fieldName, ` = e.`, fieldName)
+								}
+							}
+						}
+					}
+				}
+			}
+
 			w.P(`return entity`)
 			w.P(`}`)
 			w.Out()
