@@ -4,7 +4,7 @@ package main;
 
 import "google/protobuf/timestamp.proto";
 import "github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis/google/api/annotations.proto";
-import "github.com/cjp2600/protoc-gen-wgorm/plugin/options/wgorm.proto";
+import "github.com/cjp2600/protoc-gen-worm/plugin/options/wgorm.proto";
 import "github.com/envoyproxy/protoc-gen-validate/validate/validate.proto";
 
 // role name existing in the system

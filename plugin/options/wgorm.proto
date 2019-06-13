@@ -1,24 +1,23 @@
 syntax = "proto2";
 
-package wgorm;
+package worm;
 
 import "google/protobuf/descriptor.proto";
 
 // Currently no file options
 extend google.protobuf.FileOptions {
-    optional WGormFileOptions file_opts = 99432;
+    optional WormFileOptions file_opts = 99432;
 }
 
-message WGormFileOptions {
+message WormFileOptions {
 }
 
 // Validation rules applied at the message level
 extend google.protobuf.MessageOptions {
-    // ormable will cause orm code to be generated for this message/object
-    optional WGormMessageOptions opts = 99432;
+    optional WormMessageOptions opts = 99432;
 }
 
-message WGormMessageOptions {
+message WormMessageOptions {
     required bool model = 1;
     optional string table = 2;
     optional string merge = 4;
@@ -28,14 +27,14 @@ message WGormMessageOptions {
 
 // Field level specifications
 extend google.protobuf.FieldOptions {
-    optional WGormFieldOptions field = 99432;
+    optional WormFieldOptions field = 99432;
 }
 
-message WGormFieldOptions {
-    optional WGormTag tag = 1;
+message WormFieldOptions {
+    optional WormTag tag = 1;
 }
 
-message WGormTag {
+message WormTag {
     optional string gorm = 3;
 }
 

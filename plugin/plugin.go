@@ -2,7 +2,7 @@ package plugin
 
 import (
 	"fmt"
-	wgrom "github.com/cjp2600/protoc-gen-wgorm/plugin/options"
+	worm "github.com/cjp2600/protoc-gen-worm/plugin/options"
 	"github.com/gogo/protobuf/gogoproto"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/protoc-gen-gogo/descriptor"
@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-type WGPlugin struct {
+type WormPlugin struct {
 	*generator.Generator
 	generator.PluginImports
 
@@ -24,16 +24,10 @@ type WGPlugin struct {
 	Fields          map[string][]*descriptor.FieldDescriptorProto
 
 	// build options
-	Migrate bool
-
-	// db driver
-	DBDriver string
-
-	// global settings
+	Migrate   bool
+	DBDriver  string
 	localName string
-
-	// imports
-	useTime bool
+	useTime   bool
 }
 
 type ConvertEntity struct {
@@ -50,18 +44,18 @@ type PrivateEntity struct {
 
 var ServiceName string
 
-func NewWGPlugin(generator *generator.Generator) *WGPlugin {
-	return &WGPlugin{Generator: generator}
+func NewWormPlugin(generator *generator.Generator) *WormPlugin {
+	return &WormPlugin{Generator: generator}
 }
 
-func (w *WGPlugin) GetDBDriver() string {
+func (w *WormPlugin) GetDBDriver() string {
 	if len(w.DBDriver) > 0 {
 		return strings.ToLower(w.DBDriver)
 	}
 	return "postgres"
 }
 
-func (w *WGPlugin) DBDriverImport() {
+func (w *WormPlugin) DBDriverImport() {
 	switch w.GetDBDriver() {
 	case "postgres":
 		w.Generator.PrintImport("_", "github.com/jinzhu/gorm/dialects/postgres")
@@ -74,27 +68,27 @@ func (w *WGPlugin) DBDriverImport() {
 	}
 }
 
-func (w *WGPlugin) generateModelName(name string) string {
-	return name + "Gorm"
+func (w *WormPlugin) generateModelName(name string) string {
+	return name + "WORM"
 }
 
-func (w *WGPlugin) nameWithServicePrefix(funcName string) string {
+func (w *WormPlugin) nameWithServicePrefix(funcName string) string {
 	return ServiceName + funcName
 }
 
-func (w *WGPlugin) privateNameWithServicePrefix(funcName string) string {
+func (w *WormPlugin) privateNameWithServicePrefix(funcName string) string {
 	return strings.ToLower(ServiceName) + funcName
 }
 
-func (w *WGPlugin) privateName(funcName string) string {
+func (w *WormPlugin) privateName(funcName string) string {
 	return strings.ToLower(funcName)
 }
 
-func (w *WGPlugin) Name() string {
-	return "wgorm"
+func (w *WormPlugin) Name() string {
+	return "worm"
 }
 
-func (w *WGPlugin) GenerateImports(file *generator.FileDescriptor) {
+func (w *WormPlugin) GenerateImports(file *generator.FileDescriptor) {
 	w.Generator.PrintImport("os", "os")
 	w.Generator.PrintImport("gorm", "github.com/jinzhu/gorm")
 	if w.useTime {
@@ -104,12 +98,12 @@ func (w *WGPlugin) GenerateImports(file *generator.FileDescriptor) {
 	w.DBDriverImport()
 }
 
-func (w *WGPlugin) Init(gen *generator.Generator) {
-	generator.RegisterPlugin(NewWGPlugin(gen))
+func (w *WormPlugin) Init(gen *generator.Generator) {
+	generator.RegisterPlugin(NewWormPlugin(gen))
 	w.Generator = gen
 }
 
-func (w *WGPlugin) Generate(file *generator.FileDescriptor) {
+func (w *WormPlugin) Generate(file *generator.FileDescriptor) {
 	w.PrivateEntities = make(map[string]PrivateEntity)
 	w.ConvertEntities = make(map[string]ConvertEntity)
 	w.Fields = make(map[string][]*descriptor.FieldDescriptorProto)
@@ -124,12 +118,12 @@ func (w *WGPlugin) Generate(file *generator.FileDescriptor) {
 		w.setCovertEntities(msg, name)
 		w.generateModelStructures(msg, name)
 
-		if wgormMessage, ok := w.getMessageOptions(msg); ok {
-			if wgormMessage.GetModel() {
+		if wormMessage, ok := w.getMessageOptions(msg); ok {
+			if wormMessage.GetModel() {
 				w.toPB(msg)
 				w.toGorm(msg)
 				w.GenerateTableName(msg)
-				if wgormMessage.GetMigrate() {
+				if wormMessage.GetMigrate() {
 					w.Entities = append(w.Entities, name)
 				}
 			}
@@ -149,22 +143,22 @@ func (w *WGPlugin) Generate(file *generator.FileDescriptor) {
 	w.generateConnectionMethods()
 }
 
-func (w *WGPlugin) getFieldOptions(field *descriptor.FieldDescriptorProto) *wgrom.WGormFieldOptions {
+func (w *WormPlugin) getFieldOptions(field *descriptor.FieldDescriptorProto) *worm.WormFieldOptions {
 	if field.Options == nil {
 		return nil
 	}
-	v, err := proto.GetExtension(field.Options, wgrom.E_Field)
+	v, err := proto.GetExtension(field.Options, worm.E_Field)
 	if err != nil {
 		return nil
 	}
-	opts, ok := v.(*wgrom.WGormFieldOptions)
+	opts, ok := v.(*worm.WormFieldOptions)
 	if !ok {
 		return nil
 	}
 	return opts
 }
 
-func (w *WGPlugin) goMapTypeCustomPB(d *generator.Descriptor, field *descriptor.FieldDescriptorProto) (*generator.GoMapDescriptor, bool) {
+func (w *WormPlugin) goMapTypeCustomPB(d *generator.Descriptor, field *descriptor.FieldDescriptorProto) (*generator.GoMapDescriptor, bool) {
 	var isMessage = false
 	if d == nil {
 		byName := w.ObjectNamed(field.GetTypeName())
@@ -221,7 +215,7 @@ func (w *WGPlugin) goMapTypeCustomPB(d *generator.Descriptor, field *descriptor.
 	return m, isMessage
 }
 
-func (w *WGPlugin) goMapTypeCustomGorm(d *generator.Descriptor, field *descriptor.FieldDescriptorProto) (*generator.GoMapDescriptor, bool) {
+func (w *WormPlugin) goMapTypeCustomGorm(d *generator.Descriptor, field *descriptor.FieldDescriptorProto) (*generator.GoMapDescriptor, bool) {
 	var isMessage = false
 	if d == nil {
 		byName := w.ObjectNamed(field.GetTypeName())
@@ -279,23 +273,23 @@ func (w *WGPlugin) goMapTypeCustomGorm(d *generator.Descriptor, field *descripto
 	return m, isMessage
 }
 
-func (w *WGPlugin) getMessageOptions(message *generator.Descriptor) (*wgrom.WGormMessageOptions, bool) {
+func (w *WormPlugin) getMessageOptions(message *generator.Descriptor) (*worm.WormMessageOptions, bool) {
 	opt := message.GetOptions()
 	if opt != nil {
-		v, err := proto.GetExtension(opt, wgrom.E_Opts)
+		v, err := proto.GetExtension(opt, worm.E_Opts)
 		if err != nil {
 			return nil, false
 		}
-		wgormMessage, ok := v.(*wgrom.WGormMessageOptions)
+		wormMessage, ok := v.(*worm.WormMessageOptions)
 		if !ok {
 			return nil, false
 		}
-		return wgormMessage, true
+		return wormMessage, true
 	}
 	return nil, false
 }
 
-func (w *WGPlugin) GetServiceName(file *generator.FileDescriptor) string {
+func (w *WormPlugin) GetServiceName(file *generator.FileDescriptor) string {
 	var name string
 	for _, svc := range file.Service {
 		if svc != nil && svc.Name != nil {
@@ -308,13 +302,13 @@ func (w *WGPlugin) GetServiceName(file *generator.FileDescriptor) string {
 	}
 	return name
 }
-func (w *WGPlugin) generateGlobalVariables() {
+func (w *WormPlugin) generateGlobalVariables() {
 	w.P(`// global gorm variable`)
 	dataStoreStructure := w.nameWithServicePrefix("DB")
 	w.P(`var `, dataStoreStructure, ` *gorm.DB`)
 }
 
-func (w *WGPlugin) generateConnectionMethods() {
+func (w *WormPlugin) generateConnectionMethods() {
 	dataStoreStructure := w.nameWithServicePrefix("DataStore")
 	functionName := w.privateName("Connection")
 	// create dataStore
@@ -337,14 +331,15 @@ func (w *WGPlugin) generateConnectionMethods() {
 	w.P(`}`)
 }
 
-func (w *WGPlugin) CreateDataStoreStructure(name string) {
+func (w *WormPlugin) CreateDataStoreStructure(name string) {
 	db := w.nameWithServicePrefix("DB")
 	w.P()
 	w.P(`// `, name, ` - data store`)
 	w.P(`type `, name, ` struct {`)
 	w.P(`}`)
 	functionName := "New" + name
-	w.P(`// `, functionName, ` - datastore constructor`)
+
+	w.P(`// `, functionName, ` - dataStore constructor`)
 	w.P(`func `, functionName, `(logging bool, maxConnection int) (*`, name, `, error) {`)
 	w.P(`store := &`, name, `{}`)
 	w.P(`db, err := store.connection(os.Getenv("DB_HOST"), os.Getenv("DB_PORT"), os.Getenv("DB_NAME"), os.Getenv("DB_USER"), os.Getenv("DB_PASSWORD"))`)
@@ -364,6 +359,7 @@ func (w *WGPlugin) CreateDataStoreStructure(name string) {
 	w.P(`return store, err`)
 	w.P(`}`)
 	w.P()
+
 	w.P(`// Migrate - gorm AutoMigrate`)
 	w.P(`func (d *`, name, `) migrate() {`)
 	if len(w.Entities) > 0 {
@@ -376,7 +372,7 @@ func (w *WGPlugin) CreateDataStoreStructure(name string) {
 	w.P(`}`)
 }
 
-func (w *WGPlugin) setCovertEntities(message *generator.Descriptor, name string) {
+func (w *WormPlugin) setCovertEntities(message *generator.Descriptor, name string) {
 	opt, ok := w.getMessageOptions(message)
 	if ok {
 		if entity := opt.GetConvertTo(); len(entity) > 0 {
@@ -395,7 +391,7 @@ func (w *WGPlugin) setCovertEntities(message *generator.Descriptor, name string)
 	}
 }
 
-func (w *WGPlugin) generateModelStructures(message *generator.Descriptor, name string) {
+func (w *WormPlugin) generateModelStructures(message *generator.Descriptor, name string) {
 	w.P(`// create gorm model from protobuf (`, name, `)`)
 	w.P(`type `, name, ` struct {`)
 
@@ -446,7 +442,7 @@ func (w *WGPlugin) generateModelStructures(message *generator.Descriptor, name s
 	w.P(`}`)
 }
 
-func (w *WGPlugin) toPB(message *generator.Descriptor) {
+func (w *WormPlugin) toPB(message *generator.Descriptor) {
 	w.In()
 	mName := w.generateModelName(message.GetName())
 	w.P(`func (e *`, mName, `) ToPB() *`, message.GetName(), ` {`)
@@ -461,7 +457,7 @@ func (w *WGPlugin) toPB(message *generator.Descriptor) {
 	w.P(``)
 }
 
-func (w *WGPlugin) toGorm(message *generator.Descriptor) {
+func (w *WormPlugin) toGorm(message *generator.Descriptor) {
 	w.In()
 	mName := w.generateModelName(message.GetName())
 	w.P(`func (e *`, message.GetName(), `) ToGorm() *`, mName, ` {`)
@@ -476,7 +472,7 @@ func (w *WGPlugin) toGorm(message *generator.Descriptor) {
 	w.P(``)
 }
 
-func (w *WGPlugin) ToGormFields(field *descriptor.FieldDescriptorProto, message *generator.Descriptor, bomField *wgrom.WGormFieldOptions) {
+func (w *WormPlugin) ToGormFields(field *descriptor.FieldDescriptorProto, message *generator.Descriptor, bomField *worm.WormFieldOptions) {
 	fieldName := field.GetName()
 	fieldName = generator.CamelCase(fieldName)
 	goTyp, _ := w.GoType(message, field)
@@ -545,7 +541,7 @@ func (w *WGPlugin) ToGormFields(field *descriptor.FieldDescriptorProto, message 
 	w.Out()
 }
 
-func (w *WGPlugin) ToPBFields(field *descriptor.FieldDescriptorProto, message *generator.Descriptor, wGormFieldOptions *wgrom.WGormFieldOptions) {
+func (w *WormPlugin) ToPBFields(field *descriptor.FieldDescriptorProto, message *generator.Descriptor, wGormFieldOptions *worm.WormFieldOptions) {
 	fieldName := field.GetName()
 	fieldName = generator.CamelCase(fieldName)
 	oneof := field.OneofIndex != nil
@@ -608,7 +604,7 @@ func (w *WGPlugin) ToPBFields(field *descriptor.FieldDescriptorProto, message *g
 	w.Out()
 }
 
-func (w *WGPlugin) GenerateTableName(msg *generator.Descriptor) {
+func (w *WormPlugin) GenerateTableName(msg *generator.Descriptor) {
 	var tableName string
 	mName := w.generateModelName(msg.GetName())
 	message, ok := w.getMessageOptions(msg)
@@ -623,24 +619,25 @@ func (w *WGPlugin) GenerateTableName(msg *generator.Descriptor) {
 	}
 }
 
-func (w *WGPlugin) generateEntitiesMethods() {
+func (w *WormPlugin) generateEntitiesMethods() {
 	if len(w.PrivateEntities) > 0 {
 		for key, value := range w.PrivateEntities {
 			w.P(``)
 			w.P(`// Merge - merge private structure (`, value.name, `)`)
 			w.P(`func (e *`, value.name, `) Merge`, strings.Trim(key, " "), ` (m *`, key, `) *`, value.name, ` {`)
+
 			for _, field := range value.items {
 				fieldName := field.GetName()
 				fieldName = generator.CamelCase(fieldName)
 				w.P(`e.`, fieldName, ` = m.`, fieldName)
 			}
+
 			w.P(`return e`)
 			w.P(`}`)
 			w.Out()
 			w.P(``)
 		}
 	}
-
 	if len(w.ConvertEntities) > 0 {
 		for _, value := range w.ConvertEntities {
 			w.P(``)
@@ -660,7 +657,6 @@ func (w *WGPlugin) generateEntitiesMethods() {
 					}
 				}
 			}
-
 			for _, pe := range w.PrivateEntities {
 				if pe.name == value.nameTo {
 					for _, f1 := range pe.items {
@@ -676,7 +672,6 @@ func (w *WGPlugin) generateEntitiesMethods() {
 					}
 				}
 			}
-
 			w.P(`return entity`)
 			w.P(`}`)
 			w.Out()
