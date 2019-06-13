@@ -1,2 +1,2 @@
-# rotoc-gen-wgorm
-protobuf plugin (generate gorm models from protobuf structures)
+# rotoc-gen-worm
+protobuf plugin (generate gorm models wrapper from protobuf structures)
