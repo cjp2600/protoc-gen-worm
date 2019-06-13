@@ -4,7 +4,7 @@ package main;
 
 import "google/protobuf/timestamp.proto";
 import "github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis/google/api/annotations.proto";
-import "github.com/cjp2600/protoc-gen-worm/plugin/options/wgorm.proto";
+import "github.com/cjp2600/protoc-gen-worm/plugin/options/worm.proto";
 import "github.com/envoyproxy/protoc-gen-validate/validate/validate.proto";
 
 // role name existing in the system
@@ -157,25 +157,25 @@ message UserResponse {
 // role model
 message Role {
 
-    option (wgorm.opts) = {
+    option (worm.opts) = {
           model: true
           migrate: true
     };
 
-    string id = 1 [(wgorm.field).tag = {gorm: "type:uuid;primary_key"}];
+    string id = 1 [(worm.field).tag = {gorm: "type:uuid;primary_key"}];
     RoleName name = 2;
-    repeated Permission permissions = 3 [(wgorm.field).tag = {gorm: "foreignkey:RoleId;association_foreignkey:Id"}];
+    repeated Permission permissions = 3 [(worm.field).tag = {gorm: "foreignkey:RoleId;association_foreignkey:Id"}];
 }
 
 // permission model
 message Permission {
 
-    option (wgorm.opts) = {
+    option (worm.opts) = {
           model: true
           migrate: true
     };
 
-    string id = 1 [(wgorm.field).tag = {gorm: "type:uuid;primary_key"}];
+    string id = 1 [(worm.field).tag = {gorm: "type:uuid;primary_key"}];
 
     string service = 3;
     bool create = 4;
@@ -185,7 +185,7 @@ message Permission {
 }
 
 message PupilRegistrationRequest {
-    option (wgorm.opts) = {
+    option (worm.opts) = {
           model: true
           convertTo: "User"
     };
@@ -204,13 +204,13 @@ message PrivateUser {
 // display user model
 message User {
 
-    option (wgorm.opts) = {
+    option (worm.opts) = {
           model: true
           migrate: true
           merge: "PrivateUser"
     };
 
-    string id = 1 [(wgorm.field).tag = {gorm: "type:uuid;primary_key"}];
+    string id = 1 [(worm.field).tag = {gorm: "type:uuid;primary_key"}];
 
     bool active = 2; // activity flag
     string firstName = 3; //
@@ -227,13 +227,13 @@ message User {
 // token model
 message Token {
 
-    option (wgorm.opts) = {
+    option (worm.opts) = {
           model: true
           migrate: true
     };
 
-    string id = 1 [(wgorm.field).tag = {gorm: "type:uuid;primary_key"}];
-    string userId = 2 [(wgorm.field).tag = {gorm: "type:uuid"}];
+    string id = 1 [(worm.field).tag = {gorm: "type:uuid;primary_key"}];
+    string userId = 2 [(worm.field).tag = {gorm: "type:uuid"}];
     string accessToken = 3;
     string refreshToken = 4;
     google.protobuf.Timestamp expireAccessToken = 5;

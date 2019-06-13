@@ -3,7 +3,7 @@ build-options:
 	-I$(GOPATH)/src \
 	-I$(GOPATH)/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis \
 	--go_out=. \
-	plugin/options/wgorm.proto
+	plugin/options/worm.proto
 
 build:
 	protoc -I/usr/local/include -I. \
@@ -16,5 +16,5 @@ build:
 	-I$(GOPATH)/src   \
 	-I$(GOPATH)/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis   \
 	--plugin=protoc-gen-worm=app \
-	--wgorm_out="Migrate=true,DBDriver="postgres"gateway:." \
+	--worm_out="Migrate=true,DBDriver="postgres"gateway:." \
 	test.proto
