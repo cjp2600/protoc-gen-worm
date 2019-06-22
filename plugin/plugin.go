@@ -643,7 +643,7 @@ func (w *WormPlugin) generateEntitiesMethods() {
 			w.P(``)
 			w.P(`// To`, strings.Trim(value.nameTo, " "), ` - convert structure (`, value.nameFrom, ` -> `, value.nameTo, `)`)
 			w.P(`func (e *`, value.nameFrom, `) To`, strings.Trim(value.nameTo, " "), ` () *`, value.nameTo, ` {`)
-			w.P(`var entity *`, value.nameTo)
+			w.P(`var entity `, value.nameTo)
 			if fieldsFrom, ok := w.Fields[value.nameFrom]; ok {
 				if fieldsTo, ok := w.Fields[value.nameTo]; ok {
 					for _, field := range fieldsFrom {
@@ -672,7 +672,7 @@ func (w *WormPlugin) generateEntitiesMethods() {
 					}
 				}
 			}
-			w.P(`return entity`)
+			w.P(`return &entity`)
 			w.P(`}`)
 			w.Out()
 			w.P(``)
