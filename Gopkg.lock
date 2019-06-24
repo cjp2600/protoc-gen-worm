@@ -2,12 +2,12 @@
 
 
 [[projects]]
-  digest = "1:743f8008a7fed04ef0d52261aef346766bbd5b3e360b90296d85289f8ef5c2e2"
-  name = "github.com/envoyproxy/protoc-gen-validate"
-  packages = ["validate"]
+  digest = "1:320e7ead93de9fd2b0e59b50fd92a4d50c1f8ab455d96bc2eb083267453a9709"
+  name = "github.com/asaskevich/govalidator"
+  packages = ["."]
   pruneopts = "UT"
-  revision = "9eff07ddfcb4001aa1aab280648153f46e1a8ddc"
-  version = "v0.1.0"
+  revision = "ccb8e960c48f04d6935e72476ae4a51028f9e22f"
+  version = "v9"
 
 [[projects]]
   digest = "1:2cd7915ab26ede7d95b8749e6b1f933f1c6d5398030684e6505940a10f31cfda"
@@ -158,7 +158,7 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
-    "github.com/envoyproxy/protoc-gen-validate/validate",
+    "github.com/asaskevich/govalidator",
     "github.com/gogo/protobuf/gogoproto",
     "github.com/gogo/protobuf/proto",
     "github.com/gogo/protobuf/protoc-gen-gogo/descriptor",

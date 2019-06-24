@@ -91,7 +91,7 @@ func (w *WormPlugin) Name() string {
 func (w *WormPlugin) GenerateImports(file *generator.FileDescriptor) {
 	w.Generator.PrintImport("os", "os")
 	w.Generator.PrintImport("gorm", "github.com/jinzhu/gorm")
-	w.Generator.PrintImport("validator", "gopkg.in/validator.v2")
+	w.Generator.PrintImport("valid", "github.com/asaskevich/govalidator")
 	if w.useTime {
 		w.Generator.PrintImport("time", "time")
 		w.Generator.PrintImport("ptypes", "github.com/golang/protobuf/ptypes")
@@ -164,7 +164,7 @@ func (w *WormPlugin) generateValidationMethods(message *generator.Descriptor) {
 	w.P(`// isValid - validation method of the described protobuf structure `)
 	name := w.generateModelName(message.GetName())
 	w.P(`func (e *`, name, `) IsValid() error {`)
-	w.P(`if err := validator.Validate(e); err != nil {`)
+	w.P(`if _, err := valid.ValidateStruct(e); err != nil {`)
 	w.P(`return err`)
 	w.P(`}`)
 	w.P(`return nil`)
@@ -445,7 +445,7 @@ func (w *WormPlugin) generateModelStructures(message *generator.Descriptor, name
 					tagString = tagString + " "
 				}
 
-				tagString = tagString + `validate:"` + validTag + `"`
+				tagString = tagString + `valid:"` + validTag + `"`
 			}
 			tagString = tagString + "`"
 		}
