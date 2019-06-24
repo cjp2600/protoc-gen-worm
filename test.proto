@@ -5,7 +5,6 @@ package main;
 import "google/protobuf/timestamp.proto";
 import "github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis/google/api/annotations.proto";
 import "github.com/cjp2600/protoc-gen-worm/plugin/options/worm.proto";
-import "github.com/envoyproxy/protoc-gen-validate/validate/validate.proto";
 
 // role name existing in the system
 enum RoleName {
@@ -119,16 +118,16 @@ message UserListQueryRequest {
 }
 
 message AccessTokenRequest {
-    string accessToken = 1 [(validate.rules).string.min_len = 1];
+    string accessToken = 1 [(worm.field).tag = {validator: "nonzero"}];
 }
 
 message RefreshTokenRequest {
-    string refreshToken = 1 [(validate.rules).string.min_len = 1];
+    string refreshToken = 1 [(worm.field).tag = {validator: "nonzero"}];
 }
 
 message AuthRequest {
-    string email = 1 [(validate.rules).string.email = true];
-    string password = 2 [(validate.rules).string.min_len = 6];
+    string email = 1 [(worm.field).tag = {validator: "nonzero"}];
+    string password = 2 [(worm.field).tag = {validator: "nonzero"}];
 }
 
 message TokenResponse {
@@ -190,11 +189,11 @@ message PupilRegistrationRequest {
           convertTo: "User"
     };
 
-    string firstName = 3 [(validate.rules).string.min_len = 1];
+    string firstName = 3 [(worm.field).tag = {validator: "nonzero"}];
     string lastName = 4;
     string phone = 6;
-    string password = 11 [(validate.rules).string.min_len = 6];
-    string email = 7 [(validate.rules).string.email = true];
+    string password = 11 [(worm.field).tag = {validator: "nonzero"}];
+    string email = 7 [(worm.field).tag = {validator: "nonzero"}];
 }
 
 message PrivateUser {
@@ -210,7 +209,7 @@ message User {
           merge: "PrivateUser"
     };
 
-    string id = 1 [(worm.field).tag = {gorm: "type:uuid;primary_key"}];
+    string id = 1 [(worm.field).tag = {gorm: "type:uuid;primary_key" validator: "nonzero" }];
 
     bool active = 2; // activity flag
     string firstName = 3; //

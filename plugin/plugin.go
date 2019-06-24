@@ -91,6 +91,7 @@ func (w *WormPlugin) Name() string {
 func (w *WormPlugin) GenerateImports(file *generator.FileDescriptor) {
 	w.Generator.PrintImport("os", "os")
 	w.Generator.PrintImport("gorm", "github.com/jinzhu/gorm")
+	w.Generator.PrintImport("validator", "gopkg.in/validator.v2")
 	if w.useTime {
 		w.Generator.PrintImport("time", "time")
 		w.Generator.PrintImport("ptypes", "github.com/golang/protobuf/ptypes")
@@ -117,6 +118,7 @@ func (w *WormPlugin) Generate(file *generator.FileDescriptor) {
 
 		w.setCovertEntities(msg, name)
 		w.generateModelStructures(msg, name)
+		w.generateValidationMethods(msg)
 
 		if wormMessage, ok := w.getMessageOptions(msg); ok {
 			if wormMessage.GetModel() {
@@ -156,6 +158,19 @@ func (w *WormPlugin) getFieldOptions(field *descriptor.FieldDescriptorProto) *wo
 		return nil
 	}
 	return opts
+}
+
+func (w *WormPlugin) generateValidationMethods(message *generator.Descriptor) {
+	w.P(`// isValid - validation method of the described protobuf structure `)
+	name := w.generateModelName(message.GetName())
+	w.P(`func (e *`, name, `) IsValid() error {`)
+	w.P(`if err := validator.Validate(e); err != nil {`)
+	w.P(`return err`)
+	w.P(`}`)
+	w.P(`return nil`)
+	w.P(`}`)
+	w.Out()
+	w.P(``)
 }
 
 func (w *WormPlugin) goMapTypeCustomPB(d *generator.Descriptor, field *descriptor.FieldDescriptorProto) (*generator.GoMapDescriptor, bool) {
@@ -417,12 +432,24 @@ func (w *WormPlugin) generateModelStructures(message *generator.Descriptor, name
 		var tagString string
 		if wgromField != nil && wgromField.Tag != nil {
 			gormTag := wgromField.Tag.GetGorm()
+
+			tagString = "`"
 			if len(gormTag) > 0 {
-				tagString = "`"
 				tagString = tagString + `gorm:"` + gormTag + `"`
-				tagString = tagString + "`"
 			}
+
+			validTag := wgromField.Tag.GetValidator()
+			if len(validTag) > 0 {
+
+				if len(gormTag) > 0 {
+					tagString = tagString + " "
+				}
+
+				tagString = tagString + `validate:"` + validTag + `"`
+			}
+			tagString = tagString + "`"
 		}
+
 		if oneOf {
 			w.P(fieldName, ` `, goTyp, tagString)
 		} else if w.IsMap(field) {
