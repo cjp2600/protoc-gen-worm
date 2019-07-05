@@ -778,14 +778,14 @@ func (w *WormPlugin) geterateGormMethods(msg *generator.Descriptor) {
 			// Where
 			w.P(`// Where wrapper`)
 			w.P(`func (e *`, mName, `) Where(query interface{}, args ...interface{}) *`, mName, ` {`)
-			w.P(`e.G().Where(query, args)`)
+			w.P(`e.gorm = e.G().Where(query, args)`)
 			w.P(`return e`)
 			w.P(`}`)
 			w.P(``)
 
 			w.P(`// Preload wrapper`)
 			w.P(`func (e *`, mName, `) Preload(column string, conditions ...interface{}) *`, mName, ` {`)
-			w.P(`e.G().Preload(column, conditions)`)
+			w.P(`e.gorm = e.G().Preload(column, conditions)`)
 			w.P(`return e`)
 			w.P(`}`)
 			w.P(``)
