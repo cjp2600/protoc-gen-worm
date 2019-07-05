@@ -775,27 +775,11 @@ func (w *WormPlugin) geterateGormMethods(msg *generator.Descriptor) {
 			w.P(`}`)
 			w.P(``)
 
-			// Where
-			w.P(`// Where wrapper`)
-			w.P(`func (e *`, mName, `) Where(query interface{}, args ...interface{}) *`, mName, ` {`)
-			w.P(`e.gorm = e.G().Where(query, args)`)
-			w.P(`return e`)
-			w.P(`}`)
-			w.P(``)
-
-			w.P(`// Preload wrapper`)
-			w.P(`func (e *`, mName, `) Preload(column string, conditions ...interface{}) *`, mName, ` {`)
-			w.P(`e.gorm = e.G().Preload(column, conditions)`)
-			w.P(`return e`)
-			w.P(`}`)
-			w.P(``)
-
 			// FindOneWithCache
 			w.P(`// SetGorm setter custom gorm object`)
-			w.P(`func (e *`, mName, `) FindOneWithCache(key string, ttl time.Duration) (*`, mName, `, error) {`)
-			w.P(`query := e.G()`)
+			w.P(`func (e *`, mName, `) FindOneWithCache(db *gorm.DB, key string, ttl time.Duration) (*`, mName, `, error) {`)
 			w.P(`if err := `, w.connectGlobalVar, `.Get(key, &e); err != nil {`)
-			w.P(`if err := query.Find(&e).Error; gorm.IsRecordNotFoundError(err) {`)
+			w.P(`if err := db.Find(&e).Error; gorm.IsRecordNotFoundError(err) {`)
 			w.P(`return nil, fmt.Errorf("`, mName, ` not found")`)
 			w.P(`}`)
 			w.P(`err := `, w.connectGlobalVar, `.Set(&cache.Item{`)
