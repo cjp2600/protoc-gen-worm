@@ -783,6 +783,13 @@ func (w *WormPlugin) geterateGormMethods(msg *generator.Descriptor) {
 			w.P(`}`)
 			w.P(``)
 
+			w.P(`// Preload wrapper`)
+			w.P(`func (e *`, mName, `) Preload(column string, conditions ...interface{}) *`, mName, ` {`)
+			w.P(`e.G().Preload(column, conditions)`)
+			w.P(`return e`)
+			w.P(`}`)
+			w.P(``)
+
 			// FindOneWithCache
 			w.P(`// SetGorm setter custom gorm object`)
 			w.P(`func (e *`, mName, `) FindOneWithCache(key string, ttl time.Duration) (*`, mName, `, error) {`)
