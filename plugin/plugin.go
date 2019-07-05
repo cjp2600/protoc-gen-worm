@@ -858,7 +858,8 @@ func (w *WormPlugin) generateRedisConnection() {
 
 	w.P(`// GetCacheKeyFromQuery generate cache from query`)
 	w.P(`func GetCacheKeyFromQuery(query *gorm.DB) string {`)
-	w.P(`return fmt.Sprintf("%x", md5.Sum([]byte(fmt.Sprintf("%v", query.QueryExpr()))))`)
+	w.P(`pref := "bookletix"`)
+	w.P(`return fmt.Sprintf("%x", md5.Sum([]byte(pref+fmt.Sprintf("%v", query.QueryExpr()))))`)
 	w.P(`}`)
 	w.P(``)
 
