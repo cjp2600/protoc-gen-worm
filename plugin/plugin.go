@@ -103,6 +103,7 @@ func (w *WormPlugin) GenerateImports(file *generator.FileDescriptor) {
 	w.Generator.PrintImport("redis", "github.com/go-redis/redis")
 	w.Generator.PrintImport("msgpack", "github.com/vmihailenco/msgpack")
 	w.Generator.PrintImport("os", "os")
+	w.Generator.PrintImport("md5", "crypto/md5")
 	w.Generator.PrintImport("gorm", "github.com/jinzhu/gorm")
 	w.Generator.PrintImport("valid", "github.com/asaskevich/govalidator")
 	if w.useTime {
@@ -852,6 +853,12 @@ func (w *WormPlugin) generateRedisConnection() {
 	w.P(`Expiration: ttl,`)
 	w.P(`})`)
 	w.P(`return err`)
+	w.P(`}`)
+	w.P(``)
+
+	w.P(`// GetCacheKeyFromQuery generate cache from query`)
+	w.P(`func GetCacheKeyFromQuery(query *gorm.DB) string {`)
+	w.P(`return fmt.Sprintf("%x", md5.Sum([]byte(fmt.Sprintf("%v", query.QueryExpr()))))`)
 	w.P(`}`)
 	w.P(``)
 
