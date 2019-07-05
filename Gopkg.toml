@@ -26,3 +26,15 @@ required = ["github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger"]
 [[constraint]]
   name = "github.com/asaskevich/govalidator"
   version = "9.0.0"
+
+[[constraint]]
+  name = "github.com/vmihailenco/msgpack"
+  version = "4.0.4"
+
+[[constraint]]
+  name = "github.com/go-redis/cache"
+  version = "6.4.0"
+
+[[constraint]]
+  name = "github.com/go-redis/redis"
+  version = "6.15.3"

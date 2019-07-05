@@ -81,7 +81,7 @@
   version = "v1.3.1"
 
 [[projects]]
-  digest = "1:619f79f1b32a56057384393ea6edc5f5333d1418288f57898951bbbec724b179"
+  digest = "1:9685e17859c6ee85dbf8605b125fbf296202ad6e1fd4c87b0ea09dded1c0ce7d"
   name = "github.com/grpc-ecosystem/grpc-gateway"
   packages = [
     "codegenerator",
@@ -95,19 +95,19 @@
     "utilities",
   ]
   pruneopts = "UT"
-  revision = "8fd5fd9d19ce68183a6b0934519dfe7fe6269612"
-  version = "v1.9.0"
+  revision = "d54b3615f714b03edde6d9206fa0476a9169c966"
+  version = "v1.9.3"
 
 [[projects]]
-  digest = "1:c1a831110975734d22f89140e720da0bb5575b2516b37b2f242a5ea5e3e1e563"
+  digest = "1:da6718abe4d47b1132d98bf3f9b18e302d537bf6daf02bd40804d9295a3f32bd"
   name = "github.com/jinzhu/gorm"
   packages = [
     ".",
     "dialects/postgres",
   ]
   pruneopts = "UT"
-  revision = "01b66011427614f01e84a473b0303c917179f2a0"
-  version = "v1.9.9"
+  revision = "836fb2c19d84dac7b0272958dfb9af7cf0d0ade4"
+  version = "v1.9.10"
 
 [[projects]]
   digest = "1:01ed62f8f4f574d8aff1d88caee113700a2b44c42351943fa73cc1808f736a50"
@@ -136,15 +136,7 @@
   name = "google.golang.org/genproto"
   packages = ["googleapis/api/annotations"]
   pruneopts = "UT"
-  revision = "fb225487d10142b5bcc35abfc6cb9a0609614976"
-
-[[projects]]
-  branch = "v2"
-  digest = "1:b6539350da50de0d3c9b83ae587c06b89be9cb5750443bdd887f1c4077f57776"
-  name = "gopkg.in/validator.v2"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "135c24b11c19e52befcae2ec3fca5d9b78c4e98e"
+  revision = "710ae3a149df3775bfc2e9efb7f4fb97b186b233"
 
 [[projects]]
   digest = "1:4d2e5a73dc1500038e504a8d78b986630e3626dc027bc030ba5c75da257cdb96"
@@ -171,7 +163,6 @@
     "github.com/jinzhu/gorm",
     "github.com/jinzhu/gorm/dialects/postgres",
     "google.golang.org/genproto/googleapis/api/annotations",
-    "gopkg.in/validator.v2",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1

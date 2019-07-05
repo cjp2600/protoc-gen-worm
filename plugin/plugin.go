@@ -25,6 +25,13 @@ type WormPlugin struct {
 	ConvertEntities map[string]ConvertEntity
 	Fields          map[string][]*descriptor.FieldDescriptorProto
 
+	connectGlobalVar   string
+	clientGlobalVar    string
+	connectMethodName  string
+	codecMethodName    string
+	setCacheMethodName string
+	getCacheMethodName string
+
 	// build options
 	Migrate   bool
 	DBDriver  string
@@ -91,6 +98,10 @@ func (w *WormPlugin) Name() string {
 }
 
 func (w *WormPlugin) GenerateImports(file *generator.FileDescriptor) {
+	w.Generator.PrintImport("errors", "errors")
+	w.Generator.PrintImport("cache", "github.com/go-redis/cache")
+	w.Generator.PrintImport("redis", "github.com/go-redis/redis")
+	w.Generator.PrintImport("msgpack", "github.com/vmihailenco/msgpack")
 	w.Generator.PrintImport("os", "os")
 	w.Generator.PrintImport("gorm", "github.com/jinzhu/gorm")
 	w.Generator.PrintImport("valid", "github.com/asaskevich/govalidator")
@@ -114,6 +125,7 @@ func (w *WormPlugin) Generate(file *generator.FileDescriptor) {
 	w.localName = generator.FileName(file)
 	ServiceName = w.GetServiceName(file)
 	w.generateGlobalVariables()
+	w.generateRedisConnection()
 	// generate structures
 	for _, msg := range file.Messages() {
 		name := w.generateModelName(msg.GetName())
@@ -762,6 +774,103 @@ func (w *WormPlugin) geterateGormMethods(msg *generator.Descriptor) {
 			w.P(`return e.gorm`)
 			w.P(`}`)
 			w.P(``)
+
+			// Where
+			w.P(`// Where wrapper`)
+			w.P(`func (e *`, mName, `) Where(query interface{}, args ...interface{}) *`, mName, ` {`)
+			w.P(`e.G().Where(query, args)`)
+			w.P(`return e`)
+			w.P(`}`)
+			w.P(``)
+
+			// FindOneWithCache
+			w.P(`// SetGorm setter custom gorm object`)
+			w.P(`func (e *`, mName, `) FindOneWithCache(key string, ttl time.Duration) (*`, mName, `, error) {`)
+			w.P(`query := e.G()`)
+			w.P(`if err := `, w.connectGlobalVar, `.Get(key, &e); err != nil {`)
+			w.P(`if err := query.Find(&e).Error; gorm.IsRecordNotFoundError(err) {`)
+			w.P(`return nil, fmt.Errorf("`, mName, ` not found")`)
+			w.P(`}`)
+			w.P(`err := `, w.connectGlobalVar, `.Set(&cache.Item{`)
+			w.P(`Key:        key,`)
+			w.P(`Object:     e,`)
+			w.P(`Expiration: ttl,`)
+			w.P(`})`)
+			w.P(`if err != nil {`)
+			w.P(`fmt.Printf("error %v", err)`)
+			w.P(`}`)
+			w.P(`}`)
+			w.P(`return e, nil`)
+			w.P(`}`)
+			w.P(``)
+
 		}
 	}
+}
+
+func (w *WormPlugin) generateRedisConnection() {
+	w.connectGlobalVar = w.nameWithServicePrefix("Connect")
+	w.clientGlobalVar = w.nameWithServicePrefix("Client")
+	w.connectMethodName = w.nameWithServicePrefix("ConnectionRedis")
+	w.codecMethodName = w.nameWithServicePrefix("GetRedisCodec")
+	w.setCacheMethodName = w.nameWithServicePrefix("SetCache")
+	w.getCacheMethodName = w.nameWithServicePrefix("GetCache")
+
+	w.P(`var `, w.connectGlobalVar, ` *cache.Codec`)
+	w.P(`var `, w.clientGlobalVar, ` *redis.Client`)
+	w.P(``)
+	w.P(`// `, w.connectMethodName, ` redis connection`)
+	w.P(`func `, w.connectMethodName, `() *redis.Client {`)
+	w.P(`if `, w.clientGlobalVar, ` == nil {`)
+	w.P(w.clientGlobalVar, ` = redis.NewClient(&redis.Options{`)
+	w.P(`Addr:     os.Getenv("REDIS_HOST") + ":" + os.Getenv("REDIS_PORT"),`)
+	w.P(`Password: os.Getenv("REDIS_PASSWORD"),`)
+	w.P(`})`)
+	w.P(`_, err := `, w.clientGlobalVar, `.Ping().Result()`)
+	w.P(`if err != nil {`)
+	w.P(`er := errors.New("redis connect/ping error: " + err.Error())`)
+	w.P(`fmt.Printf("redis error: %v", er)`)
+	w.P(`}`)
+	w.P(`}`)
+	w.P(`return `, w.clientGlobalVar)
+	w.P(`}`)
+	w.P(``)
+
+	w.P(`// `, w.codecMethodName, ` get redis codec`)
+	w.P(`func `, w.codecMethodName, `() *cache.Codec {`)
+	w.P(`if `, w.connectGlobalVar, ` == nil {`)
+	w.P(w.connectGlobalVar, ` = &cache.Codec{`)
+	w.P(`Redis: `, w.connectMethodName, `(),`)
+	w.P(`Marshal: func(v interface{}) ([]byte, error) {`)
+	w.P(`	return msgpack.Marshal(v)`)
+	w.P(`},`)
+	w.P(`Unmarshal: func(b []byte, v interface{}) error {`)
+	w.P(`	return msgpack.Unmarshal(b, v)`)
+	w.P(`},`)
+	w.P(`}`)
+	w.P(`}`)
+	w.P(`return `, w.connectGlobalVar)
+	w.P(`}`)
+	w.P(``)
+
+	w.P(`// Set cache function`)
+	w.P(`func `, w.setCacheMethodName, `(codec *cache.Codec, key string, ttl time.Duration, wanted interface{}) error {`)
+	w.P(`err := codec.Set(&cache.Item{`)
+	w.P(`Key:        key,`)
+	w.P(`Object:     wanted,`)
+	w.P(`Expiration: ttl,`)
+	w.P(`})`)
+	w.P(`return err`)
+	w.P(`}`)
+	w.P(``)
+
+	w.P(`// Get cache function`)
+	w.P(`func `, w.getCacheMethodName, `(codec *cache.Codec, key string, wanted interface{}) bool {`)
+	w.P(`err := codec.Get(key, &wanted)`)
+	w.P(`if err != nil {`)
+	w.P(`return false`)
+	w.P(`}`)
+	w.P(`return true`)
+	w.P(`}`)
+	w.P(``)
 }

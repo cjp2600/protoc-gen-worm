@@ -14,7 +14,7 @@ enum RoleName {
 }
 
 // service responsible for working with users and authorization tokens
-service UserService {
+service MainService {
 
     // Registration Pupil - creating a pupil in the system
     rpc PupilRegistration (PupilRegistrationRequest) returns (UserResponse) {
