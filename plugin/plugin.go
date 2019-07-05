@@ -809,12 +809,12 @@ func (w *WormPlugin) geterateGormMethods(msg *generator.Descriptor) {
 }
 
 func (w *WormPlugin) generateRedisConnection() {
-	w.connectGlobalVar = w.nameWithServicePrefix("Connect")
-	w.clientGlobalVar = w.nameWithServicePrefix("Client")
+	w.connectGlobalVar = w.nameWithServicePrefix("RedisConnect")
+	w.clientGlobalVar = w.nameWithServicePrefix("RedisClient")
 	w.connectMethodName = w.nameWithServicePrefix("ConnectionRedis")
 	w.codecMethodName = w.nameWithServicePrefix("GetRedisCodec")
-	w.setCacheMethodName = w.nameWithServicePrefix("SetCache")
-	w.getCacheMethodName = w.nameWithServicePrefix("GetCache")
+	w.setCacheMethodName = w.nameWithServicePrefix("RedisSetCache")
+	w.getCacheMethodName = w.nameWithServicePrefix("RedisGetCache")
 
 	w.P(`var `, w.connectGlobalVar, ` *cache.Codec`)
 	w.P(`var `, w.clientGlobalVar, ` *redis.Client`)
