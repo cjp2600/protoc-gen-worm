@@ -2,13 +2,15 @@ package plugin
 
 import (
 	"fmt"
-	worm "github.com/cjp2600/protoc-gen-worm/plugin/options"
+	"path"
+	"strings"
+
 	"github.com/gogo/protobuf/gogoproto"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/protoc-gen-gogo/descriptor"
 	"github.com/gogo/protobuf/protoc-gen-gogo/generator"
-	"path"
-	"strings"
+
+	worm "github.com/cjp2600/protoc-gen-worm/plugin/options"
 )
 
 type WormPlugin struct {
@@ -119,6 +121,7 @@ func (w *WormPlugin) Generate(file *generator.FileDescriptor) {
 		w.setCovertEntities(msg, name)
 		w.generateModelStructures(msg, name)
 		w.generateValidationMethods(msg)
+		w.geterateGormMethods(msg)
 
 		if wormMessage, ok := w.getMessageOptions(msg); ok {
 			if wormMessage.GetModel() {
@@ -466,6 +469,15 @@ func (w *WormPlugin) generateModelStructures(message *generator.Descriptor, name
 			w.P(fieldName, ` `, goTyp, tagString)
 		}
 	}
+
+	opt, ok = w.getMessageOptions(message)
+	if ok {
+		if model := opt.GetModel(); model {
+			w.P(`gorm *gorm.DB`, " `gorm:\"-\"`")
+			w.P(`cacheKey string`, " `gorm:\"-\"`")
+		}
+	}
+
 	w.P(`}`)
 }
 
@@ -632,14 +644,15 @@ func (w *WormPlugin) ToPBFields(field *descriptor.FieldDescriptorProto, message 
 }
 
 func (w *WormPlugin) GenerateTableName(msg *generator.Descriptor) {
-	var tableName string
 	mName := w.generateModelName(msg.GetName())
 	message, ok := w.getMessageOptions(msg)
 	if ok {
-		tableName = strings.ToLower(msg.GetName())
-		if table := message.GetTable(); len(table) > 0 && message.GetMigrate() {
-			w.P(`func (`, mName, `) TableName() string {`)
-			tableName = table
+		if model := message.GetModel(); model {
+			tableName := strings.ToLower(msg.GetName())
+			if table := message.GetTable(); len(table) > 0 && message.GetMigrate() {
+				tableName = table
+			}
+			w.P(`func (e *`, mName, `) TableName() string {`)
 			w.P(`return "`, tableName, `"`)
 			w.P(`}`)
 		}
@@ -702,6 +715,76 @@ func (w *WormPlugin) generateEntitiesMethods() {
 			w.P(`return &entity`)
 			w.P(`}`)
 			w.Out()
+			w.P(``)
+		}
+	}
+}
+
+func (w *WormPlugin) geterateGormMethods(msg *generator.Descriptor) {
+	mName := w.generateModelName(msg.GetName())
+	db := w.nameWithServicePrefix("DB")
+	message, ok := w.getMessageOptions(msg)
+	if ok {
+		if model := message.GetModel(); model {
+			w.P(`// New`, mName, ` create `, mName, ` gorm model of protobuf `, msg.GetName())
+			w.P(`func New`, mName, `() *`, mName, ` {`)
+			w.P(`var e `, mName, ``)
+			w.P(`e.gorm = e.G()`)
+			w.P(`return &e`)
+			w.P(`}`)
+			w.P(``)
+
+			w.P(`// SetCacheKey cache key setter`)
+			w.P(`func (e *`, mName, `) SetCacheKey(key string) *`, mName, ` {`)
+			w.P(`e.cacheKey = key`)
+			w.P(`return e`)
+			w.P(`}`)
+			w.P(``)
+
+			w.P(`// GetCacheKey cache key getter`)
+			w.P(`func (e *`, mName, `) GetCacheKey() string {`)
+			w.P(`if len(e.cacheKey) > 0 {`)
+			w.P(`return e.cacheKey`)
+			w.P(`}`)
+
+			w.P(`sql, sqlOk := e.gorm.Get("sql")`)
+			w.P(`sQLVars, sQLVarsOk := e.gorm.Get("sqlVars")`)
+			w.P(`if sqlOk && sQLVarsOk {`)
+
+			w.P(`var strSql string`)
+			w.P(`if val, ok := sql.(string); ok {`)
+			w.P(`strSql = val`)
+			w.P(`}`)
+
+			w.P(`sqlCache := fmt.Sprintf(strSql, sQLVars)`)
+			w.P(`return sqlCache`)
+			w.P(`}`)
+			w.P(`return ""`)
+			w.P(`}`)
+			w.P(``)
+
+			w.P(`// SetGorm setter custom gorm object`)
+			w.P(`func (e *`, mName, `) SetGorm(db *gorm.DB) *`, mName, ` {`)
+			w.P(`e.gorm = `, db, `.Table(e.TableName())`)
+			w.P(`e.gorm.Callback().Query().Register("query_scope_sql_vars", func(scope *gorm.Scope) {`)
+			w.P(`scope.DB().InstantSet("sql", scope.SQL)`)
+			w.P(`scope.DB().InstantSet("sqlVars", scope.SQLVars)`)
+			w.P(`})`)
+			w.P(`return e`)
+			w.P(`}`)
+			w.P(``)
+
+			w.P(`// Gorm getter gorm object with table name`)
+			w.P(`func (e *`, mName, `) G() *gorm.DB {`)
+			w.P(`if e.gorm == nil {`)
+			w.P(`e.gorm = `, w.nameWithServicePrefix("DB"), `.Table(e.TableName())`)
+			w.P(`}`)
+			w.P(`e.gorm.Callback().Query().Register("query_scope_sql_vars", func(scope *gorm.Scope) {`)
+			w.P(`scope.DB().InstantSet("sql", scope.SQL)`)
+			w.P(`scope.DB().InstantSet("sqlVars", scope.SQLVars)`)
+			w.P(`})`)
+			w.P(`return e.gorm`)
+			w.P(`}`)
 			w.P(``)
 		}
 	}
