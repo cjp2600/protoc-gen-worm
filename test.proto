@@ -229,6 +229,7 @@ message Token {
     option (worm.opts) = {
           model: true
           migrate: true
+          convertTo: "User"
     };
 
     string id = 1 [(worm.field).tag = {gorm: "type:uuid;primary_key"}];

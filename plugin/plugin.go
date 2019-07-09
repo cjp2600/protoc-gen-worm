@@ -411,7 +411,7 @@ func (w *WormPlugin) setCovertEntities(message *generator.Descriptor, name strin
 			if len(st) > 0 {
 				for _, str := range st {
 					nameTo := strings.Trim(w.generateModelName(str), " ")
-					w.ConvertEntities[nameTo] = ConvertEntity{
+					w.ConvertEntities[name+":"+nameTo] = ConvertEntity{
 						nameFrom: name,
 						nameTo:   nameTo,
 						message:  message,
