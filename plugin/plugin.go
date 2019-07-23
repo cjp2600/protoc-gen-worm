@@ -25,18 +25,15 @@ type WormPlugin struct {
 	ConvertEntities map[string]ConvertEntity
 	Fields          map[string][]*descriptor.FieldDescriptorProto
 
-	connectGlobalVar   string
-	clientGlobalVar    string
-	connectMethodName  string
-	codecMethodName    string
-	setCacheMethodName string
-	getCacheMethodName string
+	clientGlobalVar   string
+	connectMethodName string
 
 	// build options
 	Migrate   bool
 	DBDriver  string
 	localName string
 	useTime   bool
+	useJsonb  bool
 }
 
 type ConvertEntity struct {
@@ -99,16 +96,17 @@ func (w *WormPlugin) Name() string {
 
 func (w *WormPlugin) GenerateImports(file *generator.FileDescriptor) {
 	w.Generator.PrintImport("errors", "errors")
-	w.Generator.PrintImport("cache", "github.com/go-redis/cache")
 	w.Generator.PrintImport("redis", "github.com/go-redis/redis")
-	w.Generator.PrintImport("msgpack", "github.com/vmihailenco/msgpack")
 	w.Generator.PrintImport("os", "os")
-	w.Generator.PrintImport("md5", "crypto/md5")
 	w.Generator.PrintImport("gorm", "github.com/jinzhu/gorm")
 	w.Generator.PrintImport("valid", "github.com/asaskevich/govalidator")
 	if w.useTime {
 		w.Generator.PrintImport("time", "time")
 		w.Generator.PrintImport("ptypes", "github.com/golang/protobuf/ptypes")
+	}
+	if w.useJsonb {
+		w.Generator.PrintImport("json", "encoding/json")
+		w.Generator.PrintImport("postgres", "github.com/jinzhu/gorm/dialects/postgres")
 	}
 	w.DBDriverImport()
 }
@@ -443,11 +441,14 @@ func (w *WormPlugin) generateModelStructures(message *generator.Descriptor, name
 		fieldName := field.GetName()
 		oneOf := field.OneofIndex != nil
 		goTyp, _ := w.GoType(message, field)
+		var isJsonb bool
+
 		fieldName = generator.CamelCase(fieldName)
 		wgromField := w.getFieldOptions(field)
 		var tagString string
 		if wgromField != nil && wgromField.Tag != nil {
 			gormTag := wgromField.Tag.GetGorm()
+			isJsonb = wgromField.Tag.GetJsonb()
 
 			tagString = "`"
 			if len(gormTag) > 0 {
@@ -478,9 +479,13 @@ func (w *WormPlugin) generateModelStructures(message *generator.Descriptor, name
 			} else {
 				w.P(fieldName, ` `, w.generateModelName(goTyp), tagString)
 			}
+		} else if isJsonb {
+			w.useJsonb = true
+			w.P(fieldName, ` `, `postgres.Jsonb`, tagString)
 		} else {
 			w.P(fieldName, ` `, goTyp, tagString)
 		}
+
 	}
 
 	opt, ok = w.getMessageOptions(message)
@@ -525,10 +530,18 @@ func (w *WormPlugin) toGorm(message *generator.Descriptor) {
 }
 
 func (w *WormPlugin) ToGormFields(field *descriptor.FieldDescriptorProto, message *generator.Descriptor, bomField *worm.WormFieldOptions) {
+	var isJsonb bool
+
 	fieldName := field.GetName()
 	fieldName = generator.CamelCase(fieldName)
 	goTyp, _ := w.GoType(message, field)
 	oneof := field.OneofIndex != nil
+
+	wgromField := w.getFieldOptions(field)
+	if wgromField != nil && wgromField.Tag != nil {
+		isJsonb = wgromField.Tag.GetJsonb()
+	}
+
 	w.In()
 	if w.IsMap(field) {
 		m, ism := w.goMapTypeCustomGorm(nil, field)
@@ -578,6 +591,11 @@ func (w *WormPlugin) ToGormFields(field *descriptor.FieldDescriptorProto, messag
 		} else {
 			w.P(`resp.`, fieldName, ` = e.`, fieldName)
 		}
+	} else if isJsonb {
+
+		w.P(`// convert to Gorm object json message`)
+		w.P(`resp.`, fieldName, ` =  postgres.Jsonb{json.RawMessage(e.`, fieldName, `)}`)
+
 	} else {
 		if oneof {
 			sourceName := w.GetFieldName(message, field)
@@ -594,11 +612,22 @@ func (w *WormPlugin) ToGormFields(field *descriptor.FieldDescriptorProto, messag
 }
 
 func (w *WormPlugin) ToPBFields(field *descriptor.FieldDescriptorProto, message *generator.Descriptor, wGormFieldOptions *worm.WormFieldOptions) {
+	var isJsonb bool
+
 	fieldName := field.GetName()
 	fieldName = generator.CamelCase(fieldName)
 	oneof := field.OneofIndex != nil
 	goTyp, _ := w.GoType(message, field)
 	w.In()
+
+	wgromField := w.getFieldOptions(field)
+	if wgromField != nil && wgromField.Tag != nil {
+		isJsonb = wgromField.Tag.GetJsonb()
+	}
+
+	/*	json, _ :=  e.Collect.MarshalJSON()
+		resp.Collect = string(json)*/
+
 	if w.IsMap(field) {
 		m, ism := w.goMapTypeCustomPB(nil, field)
 		_, keyField, keyAliasField := m.GoType, m.KeyField, m.KeyAliasField
@@ -644,6 +673,12 @@ func (w *WormPlugin) ToPBFields(field *descriptor.FieldDescriptorProto, message 
 		} else {
 			w.P(`resp.`, fieldName, ` = e.`, fieldName)
 		}
+	} else if isJsonb {
+
+		w.P(`// convert jsonb to string`)
+		w.P(fieldName, `JsonbString, _ :=  e.`, fieldName, `.MarshalJSON()`)
+		w.P(`resp.`, fieldName, ` = string(`, fieldName, `JsonbString)`)
+
 	} else {
 		if oneof {
 			sourceName := w.GetFieldName(message, field)
@@ -739,6 +774,7 @@ func (w *WormPlugin) geterateGormMethods(msg *generator.Descriptor) {
 	message, ok := w.getMessageOptions(msg)
 	if ok {
 		if model := message.GetModel(); model {
+
 			w.P(`// New`, mName, ` create `, mName, ` gorm model of protobuf `, msg.GetName())
 			w.P(`func New`, mName, `() *`, mName, ` {`)
 			w.P(`var e `, mName, ``)
@@ -776,39 +812,14 @@ func (w *WormPlugin) geterateGormMethods(msg *generator.Descriptor) {
 			w.P(`}`)
 			w.P(``)
 
-			// FindOneWithCache
-			w.P(`// SetGorm setter custom gorm object`)
-			w.P(`func (e *`, mName, `) FindOneWithCache(db *gorm.DB, key string, ttl time.Duration) (*`, mName, `, error) {`)
-			w.P(`if err := `, w.connectGlobalVar, `.Get(key, &e); err != nil {`)
-			w.P(`if err := db.Find(&e).Error; gorm.IsRecordNotFoundError(err) {`)
-			w.P(`return nil, fmt.Errorf("`, mName, ` not found")`)
-			w.P(`}`)
-			w.P(`err := `, w.connectGlobalVar, `.Set(&cache.Item{`)
-			w.P(`Key:        key,`)
-			w.P(`Object:     e,`)
-			w.P(`Expiration: ttl,`)
-			w.P(`})`)
-			w.P(`if err != nil {`)
-			w.P(`fmt.Printf("error %v", err)`)
-			w.P(`}`)
-			w.P(`}`)
-			w.P(`return e, nil`)
-			w.P(`}`)
-			w.P(``)
-
 		}
 	}
 }
 
 func (w *WormPlugin) generateRedisConnection() {
-	w.connectGlobalVar = w.nameWithServicePrefix("RedisConnect")
 	w.clientGlobalVar = w.nameWithServicePrefix("RedisClient")
 	w.connectMethodName = w.nameWithServicePrefix("ConnectionRedis")
-	w.codecMethodName = w.nameWithServicePrefix("GetRedisCodec")
-	w.setCacheMethodName = w.nameWithServicePrefix("RedisSetCache")
-	w.getCacheMethodName = w.nameWithServicePrefix("RedisGetCache")
 
-	w.P(`var `, w.connectGlobalVar, ` *cache.Codec`)
 	w.P(`var `, w.clientGlobalVar, ` *redis.Client`)
 	w.P(``)
 	w.P(`// `, w.connectMethodName, ` redis connection`)
@@ -828,48 +839,4 @@ func (w *WormPlugin) generateRedisConnection() {
 	w.P(`}`)
 	w.P(``)
 
-	w.P(`// `, w.codecMethodName, ` get redis codec`)
-	w.P(`func `, w.codecMethodName, `() *cache.Codec {`)
-	w.P(`if `, w.connectGlobalVar, ` == nil {`)
-	w.P(w.connectGlobalVar, ` = &cache.Codec{`)
-	w.P(`Redis: `, w.connectMethodName, `(),`)
-	w.P(`Marshal: func(v interface{}) ([]byte, error) {`)
-	w.P(`	return msgpack.Marshal(v)`)
-	w.P(`},`)
-	w.P(`Unmarshal: func(b []byte, v interface{}) error {`)
-	w.P(`	return msgpack.Unmarshal(b, v)`)
-	w.P(`},`)
-	w.P(`}`)
-	w.P(`}`)
-	w.P(`return `, w.connectGlobalVar)
-	w.P(`}`)
-	w.P(``)
-
-	w.P(`// Set cache function`)
-	w.P(`func `, w.setCacheMethodName, `(codec *cache.Codec, key string, ttl time.Duration, wanted interface{}) error {`)
-	w.P(`err := codec.Set(&cache.Item{`)
-	w.P(`Key:        key,`)
-	w.P(`Object:     wanted,`)
-	w.P(`Expiration: ttl,`)
-	w.P(`})`)
-	w.P(`return err`)
-	w.P(`}`)
-	w.P(``)
-
-	w.P(`// GetCacheKeyFromQuery generate cache from query`)
-	w.P(`func GetCacheKeyFromQuery(query *gorm.DB) string {`)
-	w.P(`pref := "bookletix"`)
-	w.P(`return fmt.Sprintf("%x", md5.Sum([]byte(pref+fmt.Sprintf("%v", query.QueryExpr()))))`)
-	w.P(`}`)
-	w.P(``)
-
-	w.P(`// Get cache function`)
-	w.P(`func `, w.getCacheMethodName, `(codec *cache.Codec, key string, wanted interface{}) bool {`)
-	w.P(`err := codec.Get(key, &wanted)`)
-	w.P(`if err != nil {`)
-	w.P(`return false`)
-	w.P(`}`)
-	w.P(`return true`)
-	w.P(`}`)
-	w.P(``)
 }

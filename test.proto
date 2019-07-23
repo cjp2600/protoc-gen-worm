@@ -218,6 +218,7 @@ message User {
     string email = 7;
     Role role = 9; // the role to which the user is attached
     bool emailConfirm = 10;
+    string collect = 15 [(worm.field).tag = {jsonb:true}];
 
     google.protobuf.Timestamp createdAt = 13;
     google.protobuf.Timestamp updatedAt = 14;

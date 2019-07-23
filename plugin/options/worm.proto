@@ -37,6 +37,7 @@ message WormFieldOptions {
 message WormTag {
     optional string gorm = 3;
     optional string validator = 4;
+    optional bool jsonb = 5;
 }
 
 message Pagination {
