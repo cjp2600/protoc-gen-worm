@@ -6,7 +6,7 @@ import "google/protobuf/descriptor.proto";
 
 // Currently no file options
 extend google.protobuf.FileOptions {
-    optional WormFileOptions file_opts = 99432;
+    optional WormFileOptions file_opts = 332355;
 }
 
 message WormFileOptions {
@@ -14,7 +14,7 @@ message WormFileOptions {
 
 // Validation rules applied at the message level
 extend google.protobuf.MessageOptions {
-    optional WormMessageOptions opts = 99432;
+    optional WormMessageOptions opts = 332355;
 }
 
 message WormMessageOptions {
@@ -27,7 +27,7 @@ message WormMessageOptions {
 
 // Field level specifications
 extend google.protobuf.FieldOptions {
-    optional WormFieldOptions field = 99432;
+    optional WormFieldOptions field = 332355;
 }
 
 message WormFieldOptions {
@@ -49,7 +49,7 @@ message Pagination {
 
 // To be used in (leiu of) the interceptor
 extend google.protobuf.ServiceOptions {
-    optional AutoServerOptions server = 99432;
+    optional AutoServerOptions server = 332355;
 }
 
 message AutoServerOptions {
@@ -58,7 +58,7 @@ message AutoServerOptions {
 }
 
 extend google.protobuf.MethodOptions {
-    optional MethodOptions method = 99432;
+    optional MethodOptions method = 332355;
 }
 
 message MethodOptions {
