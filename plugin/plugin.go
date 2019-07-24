@@ -31,6 +31,7 @@ type WormPlugin struct {
 	// build options
 	Migrate   bool
 	DBDriver  string
+	SSLMode   bool
 	localName string
 	useTime   bool
 	useJsonb  bool
@@ -114,6 +115,16 @@ func (w *WormPlugin) GenerateImports(file *generator.FileDescriptor) {
 func (w *WormPlugin) Init(gen *generator.Generator) {
 	generator.RegisterPlugin(NewWormPlugin(gen))
 	w.Generator = gen
+
+	if val, ok := gen.Param["SSLMode"]; ok {
+		if val == "true" {
+			w.SSLMode = true
+		}
+	}
+
+	if val, ok := gen.Param["DBDriver"]; ok {
+		w.DBDriver = val
+	}
 }
 
 func (w *WormPlugin) Generate(file *generator.FileDescriptor) {
@@ -343,10 +354,15 @@ func (w *WormPlugin) generateConnectionMethods() {
 	// create dataStore
 	w.CreateDataStoreStructure(dataStoreStructure)
 
+	ssl := "disable"
+	if w.SSLMode {
+		ssl = "require"
+	}
+
 	w.P()
 	w.P(`// `, functionName, ` - db connection`)
 	w.P(`func (d *`, dataStoreStructure, `) `, functionName, `(host, port, name, user, password string) (*gorm.DB, error) {`)
-	w.P(`connectionString := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=require",`)
+	w.P(`connectionString := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=`, ssl, `",`)
 	w.P(`host,`)
 	w.P(`port,`)
 	w.P(`user,`)

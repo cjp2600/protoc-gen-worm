@@ -16,5 +16,5 @@ build:
 	-I$(GOPATH)/src   \
 	-I$(GOPATH)/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis   \
 	--plugin=protoc-gen-worm=app \
-	--worm_out="Migrate=true,DBDriver="postgres"gateway:." \
+	--worm_out="SSLMode=true,DBDriver="postgres":." \
 	test.proto
