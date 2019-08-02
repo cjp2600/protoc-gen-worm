@@ -17,6 +17,10 @@ required = ["github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger"]
   name = "google.golang.org/genproto"
 
 [[constraint]]
+  branch = "master"
+  name = "github.com/serenize/snaker"
+
+[[constraint]]
   name = "google.golang.org/grpc"
   version = "1.10.0"
 

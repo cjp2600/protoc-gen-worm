@@ -9,6 +9,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/protoc-gen-gogo/descriptor"
 	"github.com/gogo/protobuf/protoc-gen-gogo/generator"
+	"github.com/serenize/snaker"
 
 	worm "github.com/cjp2600/protoc-gen-worm/plugin/options"
 )
@@ -35,16 +36,19 @@ type WormPlugin struct {
 	localName string
 	useTime   bool
 	useJsonb  bool
+	useUnsafe bool
 }
 
 type ConvertEntity struct {
 	nameFrom string
 	nameTo   string
+	isOneOf  bool
 	message  *generator.Descriptor
 }
 
 type PrivateEntity struct {
 	name    string
+	isOneOf bool
 	items   []*descriptor.FieldDescriptorProto
 	message *generator.Descriptor
 }
@@ -109,6 +113,9 @@ func (w *WormPlugin) GenerateImports(file *generator.FileDescriptor) {
 		w.Generator.PrintImport("json", "encoding/json")
 		w.Generator.PrintImport("postgres", "github.com/jinzhu/gorm/dialects/postgres")
 	}
+	if w.useUnsafe {
+		w.Generator.PrintImport("unsafe", "unsafe")
+	}
 	w.DBDriverImport()
 }
 
@@ -149,6 +156,7 @@ func (w *WormPlugin) Generate(file *generator.FileDescriptor) {
 			if wormMessage.GetModel() {
 				w.toPB(msg)
 				w.toGorm(msg)
+				w.generateUpdateMethod(msg)
 				w.GenerateTableName(msg)
 				if wormMessage.GetMigrate() {
 					w.Entities = append(w.Entities, name)
@@ -196,6 +204,145 @@ func (w *WormPlugin) generateValidationMethods(message *generator.Descriptor) {
 	w.P(`}`)
 	w.Out()
 	w.P(``)
+}
+
+func (w *WormPlugin) generateUpdateMethod(message *generator.Descriptor) {
+	name := w.generateModelName(message.GetName())
+
+	w.P(`// Update - update model method, a check is made on existing fields.`)
+	w.P(`func (e *`, name, `) UpdateIfExist(updateAt bool) (*`, name, `, error) {`)
+	w.P(`updateEntities := make(map[string]interface{})`)
+	w.P(`query := e.G()`)
+	w.P()
+
+	fields := message.GetField()
+	opt, ok := w.getMessageOptions(message)
+	if ok {
+		if table := opt.GetMerge(); len(table) > 0 {
+			st := strings.Split(table, ",")
+			if len(st) > 0 {
+				for _, str := range st {
+					if val, ok := w.Fields[w.generateModelName(str)]; ok {
+						for _, f1 := range val {
+							fields = append(fields, f1)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	for _, field := range fields {
+		var isJsonb bool
+		fieldName := field.GetName()
+
+		wgromField := w.getFieldOptions(field)
+		if wgromField != nil && wgromField.Tag != nil {
+			isJsonb = wgromField.Tag.GetJsonb()
+		}
+
+		if strings.ToLower(fieldName) == "id" {
+			w.P(`// check if fill id field`)
+			w.P(`if len(e.Id) > 0 {`)
+			w.P(`query = query.Where("id", e.Id)`)
+			w.P(`}`)
+		}
+
+		// skip _id field UpdatedAt
+		if strings.ToLower(fieldName) == "id" || strings.ToLower(fieldName) == "createdat" || strings.ToLower(fieldName) == "updatedat" {
+			continue
+		}
+
+		// find goType
+		goTyp, _ := w.GoType(message, field)
+		fieldName = generator.CamelCase(fieldName)
+		snakeName := snaker.CamelToSnake(fieldName)
+		oneOf := field.OneofIndex != nil
+
+		if oneOf {
+
+			w.P(`// set `, fieldName)
+			w.P(`if e.`, fieldName, ` != nil {`)
+			w.P(`updateEntities["`, snakeName, `"]  = e.Get`, fieldName, `()`)
+			w.P(`}`)
+
+		} else if field.IsScalar() {
+
+			if strings.ToLower(goTyp) == "bool" {
+				w.P(`// set `, fieldName)
+				w.P(`if e.`, fieldName, ` {`)
+				w.P(`updateEntities["`, snakeName, `"]  = e.`, fieldName)
+				w.P(`}`)
+			} else {
+				w.P(`// set `, fieldName)
+				w.P(`if e.`, fieldName, ` > 0 {`)
+				w.P(`updateEntities["`, snakeName, `"]  = e.`, fieldName)
+				w.P(`}`)
+			}
+
+		} else if isJsonb {
+
+			w.P(`// set `, fieldName)
+			w.P(`b, _ := e.`, fieldName, `.RawMessage.MarshalJSON()`)
+			w.P(`if len(string(b)) > 0 && string(b) != "{}" {`)
+			w.P(`updateEntities["`, snakeName, `"]  = e.`, fieldName)
+			w.P(`}`)
+
+		} else if strings.ToLower(goTyp) == "*timestamp.timestamp" {
+			goTyp = "time.Time"
+			w.useTime = true
+
+			w.P(`// set `, fieldName)
+			w.P(`if !e.`, fieldName, `.IsZero() {`)
+			w.P(`updateEntities["`, snakeName, `"]  = e.`, fieldName)
+			w.P(`}`)
+
+		} else if w.IsMap(field) {
+
+			w.P(`// set `, fieldName)
+			w.P(`if len(e.`, fieldName, `) > 0 {`)
+			w.P(`updateEntities["`, snakeName, `"]  = e.`, fieldName)
+			w.P(`}`)
+
+		} else {
+
+			if field.IsMessage() {
+
+				w.P(`// set `, fieldName)
+				w.P(`if e.`, fieldName, ` != nil {`)
+				w.P(`updateEntities["`, snakeName, `"]  = e.`, fieldName)
+				w.P(`}`)
+
+			} else {
+
+				if field.IsEnum() {
+					w.P(`// set `, fieldName)
+					w.P(`if len(e.`, fieldName, `.String()) > 0 {`)
+					w.P(`updateEntities["`, snakeName, `"]  = e.`, fieldName)
+					w.P(`}`)
+				} else {
+					w.P(`// set `, fieldName)
+					w.P(`if len(e.`, fieldName, `) > 0 {`)
+					w.P(`updateEntities["`, snakeName, `"]  = e.`, fieldName)
+					w.P(`}`)
+				}
+			}
+
+		}
+
+	}
+
+	w.P(` if updateAt {`)
+	w.P(`updateEntities["updated_at"] = time.Now()`)
+	w.P(` }`)
+
+	w.P(` if err := query.Updates(&updateEntities).Error; err != nil {`)
+	w.P(` return e, err`)
+	w.P(` }`)
+
+	w.P(` return e, nil`)
+	w.P(`}`)
+	w.P()
 }
 
 func (w *WormPlugin) goMapTypeCustomPB(d *generator.Descriptor, field *descriptor.FieldDescriptorProto) (*generator.GoMapDescriptor, bool) {
@@ -453,11 +600,30 @@ func (w *WormPlugin) generateModelStructures(message *generator.Descriptor, name
 		}
 	}
 
+	type useUnsafeMethod struct {
+		fieldName string
+		goTyp     string
+		mName     string
+	}
+
+	var nsafeScope []useUnsafeMethod
 	for _, field := range message.GetField() {
 		fieldName := field.GetName()
 		oneOf := field.OneofIndex != nil
 		goTyp, _ := w.GoType(message, field)
 		var isJsonb bool
+
+		if oneOf && strings.ToLower(goTyp) == "*timestamp.timestamp" {
+			goTyp = "time.Time"
+		}
+		if oneOf {
+			w.useUnsafe = true
+			nsafeScope = append(nsafeScope, useUnsafeMethod{
+				fieldName: strings.Title(fieldName),
+				goTyp:     goTyp,
+				mName:     name,
+			})
+		}
 
 		fieldName = generator.CamelCase(fieldName)
 		wgromField := w.getFieldOptions(field)
@@ -484,7 +650,14 @@ func (w *WormPlugin) generateModelStructures(message *generator.Descriptor, name
 		}
 
 		if oneOf {
-			w.P(fieldName, ` `, goTyp, tagString)
+
+			if strings.ToLower(goTyp) == "*timestamp.timestamp" {
+				w.P(fieldName, ` *time.Time`, tagString)
+				w.useTime = true
+			} else {
+				w.P(fieldName, ` *`, goTyp, tagString)
+			}
+
 		} else if w.IsMap(field) {
 			m, _ := w.goMapTypeCustomGorm(nil, field)
 			w.P(fieldName, ` `, m.GoType, tagString)
@@ -511,8 +684,20 @@ func (w *WormPlugin) generateModelStructures(message *generator.Descriptor, name
 			w.P(`cacheKey string`, " `gorm:\"-\"`")
 		}
 	}
-
 	w.P(`}`)
+
+	for _, s := range nsafeScope {
+		w.P(``)
+		w.P(`//Check method `, s.fieldName, ` - update field`)
+		w.P(`func (e *`, name, `) Get`, s.fieldName, `() `, s.goTyp, ` {`)
+		w.P(`var resp `, s.goTyp)
+		w.P(`if e.`, s.fieldName, ` != nil {`)
+		w.P(`resp = *((*`, s.goTyp, `)(unsafe.Pointer(e.`, s.fieldName, `)))`)
+		w.P(`}`)
+		w.P(`return resp`)
+		w.P(`}`)
+		w.P(``)
+	}
 }
 
 func (w *WormPlugin) toPB(message *generator.Descriptor) {
@@ -617,7 +802,8 @@ func (w *WormPlugin) ToGormFields(field *descriptor.FieldDescriptorProto, messag
 			sourceName := w.GetFieldName(message, field)
 			w.P(`// oneof link`)
 			w.P(`if e.Get`, sourceName, `() != nil {`)
-			w.P(`resp.`, fieldName, ` = e.Get`, fieldName, `()`)
+			w.P(`value :=  e.Get`, fieldName, `()`)
+			w.P(`resp.`, fieldName, ` = &value`)
 			w.P(`}`)
 			w.P(``)
 		} else {
@@ -699,7 +885,7 @@ func (w *WormPlugin) ToPBFields(field *descriptor.FieldDescriptorProto, message 
 		if oneof {
 			sourceName := w.GetFieldName(message, field)
 			interfaceName := w.Generator.OneOfTypeName(message, field)
-			w.P(`resp.`, sourceName, ` = &`, interfaceName, `{e.`, fieldName, `}`)
+			w.P(`resp.`, sourceName, ` = &`, interfaceName, `{e.Get`, fieldName, `()}`)
 		} else {
 			w.P(`resp.`, fieldName, ` = e.`, fieldName)
 		}
@@ -753,6 +939,16 @@ func (w *WormPlugin) generateEntitiesMethods() {
 					for _, field := range fieldsFrom {
 						for _, f := range fieldsTo {
 							if field.GetName() == f.GetName() {
+
+								// skip if not equal oneOf
+								oneoField := field.OneofIndex != nil
+								oneoF := f.OneofIndex != nil
+								if oneoF {
+									if !oneoField {
+										continue
+									}
+								}
+
 								fieldName := field.GetName()
 								fieldName = generator.CamelCase(fieldName)
 								w.P(`entity.`, fieldName, ` = e.`, fieldName)
