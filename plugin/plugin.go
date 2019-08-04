@@ -156,7 +156,6 @@ func (w *WormPlugin) Generate(file *generator.FileDescriptor) {
 			if wormMessage.GetModel() {
 				w.toPB(msg)
 				w.toGorm(msg)
-				w.generateUpdateMethod(msg)
 				w.GenerateTableName(msg)
 				if wormMessage.GetMigrate() {
 					w.Entities = append(w.Entities, name)
@@ -172,6 +171,15 @@ func (w *WormPlugin) Generate(file *generator.FileDescriptor) {
 			w.PrivateEntities[name] = val
 		}
 	}
+
+	for _, msg := range file.Messages() {
+		if wormMessage, ok := w.getMessageOptions(msg); ok {
+			if wormMessage.GetModel() {
+				w.generateUpdateMethod(msg, wormMessage.GetMerge())
+			}
+		}
+	}
+
 	// generate merge and covert methods
 	w.generateEntitiesMethods()
 	// generate connection methods
@@ -206,7 +214,7 @@ func (w *WormPlugin) generateValidationMethods(message *generator.Descriptor) {
 	w.P(``)
 }
 
-func (w *WormPlugin) generateUpdateMethod(message *generator.Descriptor) {
+func (w *WormPlugin) generateUpdateMethod(message *generator.Descriptor, privateName string) {
 	name := w.generateModelName(message.GetName())
 
 	w.P(`// Update - update model method, a check is made on existing fields.`)
@@ -216,18 +224,11 @@ func (w *WormPlugin) generateUpdateMethod(message *generator.Descriptor) {
 	w.P()
 
 	fields := message.GetField()
-	opt, ok := w.getMessageOptions(message)
-	if ok {
-		if table := opt.GetMerge(); len(table) > 0 {
-			st := strings.Split(table, ",")
-			if len(st) > 0 {
-				for _, str := range st {
-					if val, ok := w.Fields[w.generateModelName(str)]; ok {
-						for _, f1 := range val {
-							fields = append(fields, f1)
-						}
-					}
-				}
+
+	if len(w.PrivateEntities) > 0 && len(privateName) > 0 {
+		if val, ok := w.PrivateEntities[w.generateModelName(privateName)]; ok {
+			for _, f1 := range val.items {
+				fields = append(fields, f1)
 			}
 		}
 	}
