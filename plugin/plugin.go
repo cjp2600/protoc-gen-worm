@@ -244,7 +244,7 @@ func (w *WormPlugin) generateUpdateMethod(message *generator.Descriptor) {
 		if strings.ToLower(fieldName) == "id" {
 			w.P(`// check if fill id field`)
 			w.P(`if len(e.Id) > 0 {`)
-			w.P(`query = query.Where("id", e.Id)`)
+			w.P(`query = query.Where("id = ?", e.Id)`)
 			w.P(`}`)
 		}
 
@@ -336,7 +336,7 @@ func (w *WormPlugin) generateUpdateMethod(message *generator.Descriptor) {
 	w.P(`updateEntities["updated_at"] = time.Now()`)
 	w.P(` }`)
 
-	w.P(` if err := query.Updates(&updateEntities).Error; err != nil {`)
+	w.P(` if err := query.Updates(updateEntities).Error; err != nil {`)
 	w.P(` return e, err`)
 	w.P(` }`)
 
