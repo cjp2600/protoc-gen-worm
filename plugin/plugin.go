@@ -25,6 +25,7 @@ type WormPlugin struct {
 	PrivateEntities map[string]PrivateEntity
 	ConvertEntities map[string]ConvertEntity
 	Fields          map[string][]*descriptor.FieldDescriptorProto
+	JsonBFields     map[string]JsonBField
 
 	clientGlobalVar   string
 	connectMethodName string
@@ -37,6 +38,12 @@ type WormPlugin struct {
 	useTime   bool
 	useJsonb  bool
 	useUnsafe bool
+}
+
+type JsonBField struct {
+	name string
+	tps  string
+	fld  *descriptor.FieldDescriptorProto
 }
 
 type ConvertEntity struct {
@@ -137,6 +144,7 @@ func (w *WormPlugin) Init(gen *generator.Generator) {
 func (w *WormPlugin) Generate(file *generator.FileDescriptor) {
 	w.PrivateEntities = make(map[string]PrivateEntity)
 	w.ConvertEntities = make(map[string]ConvertEntity)
+	w.JsonBFields = make(map[string]JsonBField)
 	w.Fields = make(map[string][]*descriptor.FieldDescriptorProto)
 
 	w.localName = generator.FileName(file)
@@ -147,6 +155,7 @@ func (w *WormPlugin) Generate(file *generator.FileDescriptor) {
 	for _, msg := range file.Messages() {
 		name := w.generateModelName(msg.GetName())
 
+		w.setJsonBFields(file)
 		w.setCovertEntities(msg, name)
 		w.generateModelStructures(msg, name)
 		w.generateValidationMethods(msg)
@@ -184,6 +193,27 @@ func (w *WormPlugin) Generate(file *generator.FileDescriptor) {
 	w.generateEntitiesMethods()
 	// generate connection methods
 	w.generateConnectionMethods()
+}
+
+func (w *WormPlugin) setJsonBFields(file *generator.FileDescriptor) {
+	for _, msg := range file.Messages() {
+		name := w.generateModelName(msg.GetName())
+		for _, fld := range msg.GetField() {
+			fieldName := fld.GetName()
+			fieldName = generator.CamelCase(fieldName)
+
+			objectFld := w.getFieldOptions(fld)
+			if objectFld != nil && objectFld.Tag != nil {
+				if objectFld.Tag.GetJsonb() {
+					w.JsonBFields[name+fieldName] = JsonBField{
+						name: fieldName,
+						tps:  fld.Type.String(),
+						fld:  fld,
+					}
+				}
+			}
+		}
+	}
 }
 
 func (w *WormPlugin) getFieldOptions(field *descriptor.FieldDescriptorProto) *worm.WormFieldOptions {
@@ -734,16 +764,16 @@ func (w *WormPlugin) toGorm(message *generator.Descriptor) {
 }
 
 func (w *WormPlugin) ToGormFields(field *descriptor.FieldDescriptorProto, message *generator.Descriptor, bomField *worm.WormFieldOptions) {
-	var isJsonb bool
 
+	name := w.generateModelName(message.GetName())
 	fieldName := field.GetName()
 	fieldName = generator.CamelCase(fieldName)
 	goTyp, _ := w.GoType(message, field)
 	oneof := field.OneofIndex != nil
 
-	wgromField := w.getFieldOptions(field)
-	if wgromField != nil && wgromField.Tag != nil {
-		isJsonb = wgromField.Tag.GetJsonb()
+	var jField *JsonBField
+	if val, ok := w.JsonBFields[name+fieldName]; ok {
+		jField = &val
 	}
 
 	w.In()
@@ -795,10 +825,20 @@ func (w *WormPlugin) ToGormFields(field *descriptor.FieldDescriptorProto, messag
 		} else {
 			w.P(`resp.`, fieldName, ` = e.`, fieldName)
 		}
-	} else if isJsonb {
+	} else if jField != nil {
 
-		w.P(`// convert to Gorm object json message`)
-		w.P(`resp.`, fieldName, ` =  postgres.Jsonb{json.RawMessage(e.`, fieldName, `)}`)
+		if field.IsRepeated() && jField.tps == "TYPE_STRING" {
+
+			w.P(`// convert to Gorm object json message`)
+			w.P(fieldName, `json, err := json.Marshal(e.`, fieldName, `)`)
+			w.P(`if err == nil {`)
+			w.P(`resp.`, fieldName, ` =  postgres.Jsonb{json.RawMessage(`, fieldName, `json)}`)
+			w.P(`}`)
+
+		} else {
+			w.P(`// convert to Gorm object json message`)
+			w.P(`resp.`, fieldName, ` =  postgres.Jsonb{json.RawMessage(e.`, fieldName, `)}`)
+		}
 
 	} else {
 		if oneof {
@@ -817,21 +857,18 @@ func (w *WormPlugin) ToGormFields(field *descriptor.FieldDescriptorProto, messag
 }
 
 func (w *WormPlugin) ToPBFields(field *descriptor.FieldDescriptorProto, message *generator.Descriptor, wGormFieldOptions *worm.WormFieldOptions) {
-	var isJsonb bool
 
+	name := w.generateModelName(message.GetName())
 	fieldName := field.GetName()
 	fieldName = generator.CamelCase(fieldName)
 	oneof := field.OneofIndex != nil
 	goTyp, _ := w.GoType(message, field)
 	w.In()
 
-	wgromField := w.getFieldOptions(field)
-	if wgromField != nil && wgromField.Tag != nil {
-		isJsonb = wgromField.Tag.GetJsonb()
+	var jField *JsonBField
+	if val, ok := w.JsonBFields[name+fieldName]; ok {
+		jField = &val
 	}
-
-	/*	json, _ :=  e.Collect.MarshalJSON()
-		resp.Collect = string(json)*/
 
 	if w.IsMap(field) {
 		m, ism := w.goMapTypeCustomPB(nil, field)
@@ -878,11 +915,23 @@ func (w *WormPlugin) ToPBFields(field *descriptor.FieldDescriptorProto, message 
 		} else {
 			w.P(`resp.`, fieldName, ` = e.`, fieldName)
 		}
-	} else if isJsonb {
+	} else if jField != nil {
 
-		w.P(`// convert jsonb to string`)
-		w.P(fieldName, `JsonbString, _ :=  e.`, fieldName, `.MarshalJSON()`)
-		w.P(`resp.`, fieldName, ` = string(`, fieldName, `JsonbString)`)
+		if field.IsRepeated() && jField.tps == "TYPE_STRING" {
+
+			w.P(`// convert jsonb to string`)
+			w.P(`var `, fieldName, `Str []string`)
+			w.P(`if err := json.Unmarshal([]byte(e.`, fieldName, `.RawMessage), &`, fieldName, `Str); err != nil {`)
+			w.P(`fmt.Println(err)`)
+			w.P(`} else {`)
+			w.P(`resp.`, fieldName, ` = `, fieldName, `Str`)
+			w.P(`}`)
+
+		} else {
+			w.P(`// convert jsonb to string`)
+			w.P(fieldName, `JsonbString, _ :=  e.`, fieldName, `.MarshalJSON()`)
+			w.P(`resp.`, fieldName, ` = string(`, fieldName, `JsonbString)`)
+		}
 
 	} else {
 		if oneof {
