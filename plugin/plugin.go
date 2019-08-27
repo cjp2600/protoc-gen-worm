@@ -284,9 +284,11 @@ func (w *WormPlugin) generateUpdateMethod(message *generator.Descriptor, private
 		} else if isJsonb {
 
 			w.P(`// set `, fieldName)
-			w.P(`b, _ := e.`, fieldName, `.RawMessage.MarshalJSON()`)
-			w.P(`if len(string(b)) > 0 && string(b) != "{}" {`)
-			w.P(`updateEntities["`, snakeName, `"]  = e.`, fieldName)
+			w.P(fieldName, `bts, err := e.`, fieldName, `.RawMessage.MarshalJSON()`)
+			w.P(`if err == nil {`)
+			w.P(`if len(string(`, fieldName, `bts)) > 0 && string(`, fieldName, `bts) != "{}" {`)
+			w.P(`updateEntities["`, snakeName, `"]  = string(`, fieldName, `bts)`)
+			w.P(`}`)
 			w.P(`}`)
 
 		} else if strings.ToLower(goTyp) == "*timestamp.timestamp" {
@@ -938,8 +940,25 @@ func (w *WormPlugin) generateEntitiesMethods() {
 			if fieldsFrom, ok := w.Fields[value.nameFrom]; ok {
 				if fieldsTo, ok := w.Fields[value.nameTo]; ok {
 					for _, field := range fieldsFrom {
+						var isJsonb bool
 						for _, f := range fieldsTo {
 							if field.GetName() == f.GetName() {
+
+								wgromField := w.getFieldOptions(f)
+								if wgromField != nil && wgromField.Tag != nil {
+									isJsonb = wgromField.Tag.GetJsonb()
+								}
+								if isJsonb {
+
+									fieldName := field.GetName()
+									fieldName = generator.CamelCase(fieldName)
+
+									w.P(`// convert jsonb from []`)
+									w.P(fieldName, `JsonbBytes, _ := json.Marshal(e.`, fieldName, `)`)
+									w.P(`entity.`, fieldName, ` = postgres.Jsonb{json.RawMessage(`, fieldName, `JsonbBytes)}`)
+
+									continue
+								}
 
 								// skip if not equal oneOf
 								oneoField := field.OneofIndex != nil

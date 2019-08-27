@@ -193,6 +193,7 @@ message PupilRegistrationRequest {
         string firstName = 3 [(worm.field).tag = {validator: "nonzero"}];
     }
 
+    repeated string categories = 8;//
     string lastName = 4;
     string phone = 6;
     string password = 11 [(worm.field).tag = {validator: "nonzero"}];
@@ -215,6 +216,7 @@ message User {
     string id = 1 [(worm.field).tag = {gorm: "type:uuid;primary_key" validator: "nonzero" }];
 
     bool active = 2; // activity flag
+    string categories = 8 [(worm.field).tag = {gorm: "index:categories" jsonb:true }];
 
     oneof firstNameField {
         string firstName = 3; //
