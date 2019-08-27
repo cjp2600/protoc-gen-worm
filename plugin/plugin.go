@@ -287,7 +287,7 @@ func (w *WormPlugin) generateUpdateMethod(message *generator.Descriptor, private
 			w.P(fieldName, `bts, err := e.`, fieldName, `.RawMessage.MarshalJSON()`)
 			w.P(`if err == nil {`)
 			w.P(`if len(string(`, fieldName, `bts)) > 0 && string(`, fieldName, `bts) != "{}" {`)
-			w.P(`updateEntities["`, snakeName, `"]  = string(`, fieldName, `bts)`)
+			w.P(`updateEntities["`, snakeName, `"] = `, fieldName, `bts`)
 			w.P(`}`)
 			w.P(`}`)
 
