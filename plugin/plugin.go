@@ -2,7 +2,6 @@ package plugin
 
 import (
 	"fmt"
-	"os"
 	"path"
 	"strings"
 
@@ -539,14 +538,17 @@ func (w *WormPlugin) generateConnectionMethods() {
 	if w.SSLMode {
 		ssl = "require"
 	}
-	if len(os.Getenv("DB_SSL_MODE")) > 0 {
-		ssl = os.Getenv("DB_SSL_MODE")
-	}
 
 	w.P()
 	w.P(`// `, functionName, ` - db connection`)
 	w.P(`func (d *`, dataStoreStructure, `) `, functionName, `(host, port, name, user, password string) (*gorm.DB, error) {`)
-	w.P(`connectionString := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=`, ssl, `",`)
+	w.P(`var ssl string`)
+	w.P(`ssl = "`, ssl, `"`)
+	w.P(`if len(os.Getenv("DB_SSL_MODE")) > 0 {`)
+	w.P(`ssl = os.Getenv("DB_SSL_MODE")`)
+	w.P(`}`)
+
+	w.P(`connectionString := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=" + ssl,`)
 	w.P(`host,`)
 	w.P(`port,`)
 	w.P(`user,`)
