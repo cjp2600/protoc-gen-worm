@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"fmt"
+	"os"
 	"path"
 	"strings"
 
@@ -537,6 +538,9 @@ func (w *WormPlugin) generateConnectionMethods() {
 	ssl := "disable"
 	if w.SSLMode {
 		ssl = "require"
+	}
+	if len(os.Getenv("DB_SSL_MODE")) > 0 {
+		ssl = os.Getenv("DB_SSL_MODE")
 	}
 
 	w.P()
