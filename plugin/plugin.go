@@ -802,7 +802,19 @@ func (w *WormPlugin) ToGormFields(field *descriptor.FieldDescriptorProto, messag
 		w.P(`}`)
 		w.P(`resp.`, fieldName, ` = tt`, fieldName)
 	} else if (field.IsMessage() && !gogoproto.IsCustomType(field) && !gogoproto.IsStdType(field)) || w.IsGroup(field) {
-		if strings.ToLower(goTyp) == "*timestamp.timestamp" {
+
+		if strings.ToLower(goTyp) == "*timestamp.timestamp" && oneof {
+
+			sourceName := w.GetFieldName(message, field)
+			w.P(`// time oneof`)
+			w.P(`if e.Get`, sourceName, `() != nil {`)
+			w.P(`// create time object`)
+			w.P(`ut`, fieldName, ` := time.Unix(e.Get`, fieldName, `().GetSeconds(), int64(e.Get`, fieldName, `().GetNanos()))`)
+			w.P(`resp.`, fieldName, ` = &ut`, fieldName)
+			w.P(`}`)
+			w.P(``)
+
+		} else if strings.ToLower(goTyp) == "*timestamp.timestamp" {
 			w.useTime = true
 			w.P(`// create time object`)
 			w.P(`ut`, fieldName, ` := time.Unix(e.`, fieldName, `.GetSeconds(), int64(e.`, fieldName, `.GetNanos()))`)
@@ -894,11 +906,23 @@ func (w *WormPlugin) ToPBFields(field *descriptor.FieldDescriptorProto, message 
 		w.Out()
 		w.P(`}`)
 		w.P(`resp.`, fieldName, ` = tt`, fieldName)
+
 	} else if (field.IsMessage() && !gogoproto.IsCustomType(field) && !gogoproto.IsStdType(field)) || w.IsGroup(field) {
-		if strings.ToLower(goTyp) == "*timestamp.timestamp" {
+
+		if strings.ToLower(goTyp) == "*timestamp.timestamp" && oneof {
+
+			sourceName := w.GetFieldName(message, field)
+			interfaceName := w.Generator.OneOfTypeName(message, field)
+			w.P(`ptap`, fieldName, `, _ := ptypes.TimestampProto(e.Get`, fieldName, `())`)
+			w.useTime = true
+			w.P(`resp.`, sourceName, ` = &`, interfaceName, `{ptap`, fieldName, `}`)
+
+		} else if strings.ToLower(goTyp) == "*timestamp.timestamp" && !oneof {
+
 			w.P(`ptap`, fieldName, `, _ := ptypes.TimestampProto(e.`, fieldName, `)`)
 			w.useTime = true
 			w.P(`resp.`, fieldName, ` = ptap`, fieldName)
+
 		} else if field.IsMessage() {
 			repeated := field.IsRepeated()
 			if repeated {

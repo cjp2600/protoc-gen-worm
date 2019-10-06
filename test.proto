@@ -193,6 +193,10 @@ message PupilRegistrationRequest {
         string firstName = 3 [(worm.field).tag = {validator: "nonzero"}];
     }
 
+    oneof myDateField {
+        google.protobuf.Timestamp myDate = 13;
+    }
+
     repeated string categories = 8;//
     string lastName = 4;
     string phone = 6;
