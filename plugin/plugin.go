@@ -961,7 +961,8 @@ func (w *WormPlugin) ToPBFields(field *descriptor.FieldDescriptorProto, message 
 
 			w.P(`// convert jsonb to string`)
 			w.P(`var `, fieldName, `Str []string`)
-			w.P(`if err := e.`, fieldName, `.Scan( &`, fieldName, `Str); err != nil {`)
+
+			w.P(`if err := json.Unmarshal(e.`, fieldName, `, &`, fieldName, `Str); err != nil {`)
 			w.P(`fmt.Println(err)`)
 			w.P(`} else {`)
 			w.P(`resp.`, fieldName, ` = `, fieldName, `Str`)
