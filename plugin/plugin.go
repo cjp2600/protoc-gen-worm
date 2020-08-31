@@ -76,13 +76,13 @@ func (w *WormPlugin) GetDBDriver() string {
 func (w *WormPlugin) DBDriverImport() {
 	switch w.GetDBDriver() {
 	case "postgres":
-		w.Generator.PrintImport("_", "github.com/jinzhu/gorm/dialects/postgres")
+		w.Generator.PrintImport("postgres", "gorm.io/driver/postgres")
 	case "mysql":
-		w.Generator.PrintImport("_", "github.com/jinzhu/gorm/dialects/mysql")
+		w.Generator.PrintImport("mysql", "gorm.io/driver/mysql")
 	case "mssql":
-		w.Generator.PrintImport("_", "github.com/jinzhu/gorm/dialects/mssql")
+		w.Generator.PrintImport("mssql", "gorm.io/driver/mssql")
 	case "sqlite":
-		w.Generator.PrintImport("_", "github.com/jinzhu/gorm/dialects/sqlite")
+		w.Generator.PrintImport("sqlite", "gorm.io/driver/sqlite")
 	}
 }
 
@@ -110,7 +110,7 @@ func (w *WormPlugin) GenerateImports(file *generator.FileDescriptor) {
 	w.Generator.PrintImport("errors", "errors")
 	w.Generator.PrintImport("redis", "github.com/go-redis/redis")
 	w.Generator.PrintImport("os", "os")
-	w.Generator.PrintImport("gorm", "github.com/jinzhu/gorm")
+	w.Generator.PrintImport("gorm", "gorm.io/gorm")
 	w.Generator.PrintImport("valid", "github.com/asaskevich/govalidator")
 	if w.useTime {
 		w.Generator.PrintImport("time", "time")
@@ -118,7 +118,7 @@ func (w *WormPlugin) GenerateImports(file *generator.FileDescriptor) {
 	}
 	if w.useJsonb {
 		w.Generator.PrintImport("json", "encoding/json")
-		w.Generator.PrintImport("postgres", "github.com/jinzhu/gorm/dialects/postgres")
+		w.Generator.PrintImport("datatypes", "gorm.io/datatypes")
 	}
 	if w.useUnsafe {
 		w.Generator.PrintImport("unsafe", "unsafe")
@@ -314,7 +314,7 @@ func (w *WormPlugin) generateUpdateMethod(message *generator.Descriptor, private
 		} else if isJsonb {
 
 			w.P(`// set `, fieldName)
-			w.P(fieldName, `bts, err := e.`, fieldName, `.RawMessage.MarshalJSON()`)
+			w.P(fieldName, `bts, err := e.`, fieldName, `.MarshalJSON()`)
 			w.P(`if err == nil {`)
 			w.P(`if len(string(`, fieldName, `bts)) > 0 && string(`, fieldName, `bts) != "{}" {`)
 			w.P(`updateEntities["`, snakeName, `"] = `, fieldName, `bts`)
@@ -554,7 +554,16 @@ func (w *WormPlugin) generateConnectionMethods() {
 	w.P(`user,`)
 	w.P(`password,`)
 	w.P(`name)`)
-	w.P(`db, err := gorm.Open("`, w.GetDBDriver(), `", connectionString)`)
+	switch w.GetDBDriver() {
+	case "postgres":
+		w.P(`db, err := gorm.Open(postgres.Open(connectionString), &gorm.Config{})`)
+	case "mysql":
+		w.P(`db, err := gorm.Open(mysql.Open(connectionString), &gorm.Config{})`)
+	case "mssql":
+		w.P(`db, err := gorm.Open(mssql.Open(connectionString), &gorm.Config{})`)
+	case "sqlite":
+		w.P(`db, err := gorm.Open(sqlite.Open(connectionString), &gorm.Config{})`)
+	}
 	w.P(`if err != nil {`)
 	w.P(`return nil, err`)
 	w.P(`}`)
@@ -567,20 +576,21 @@ func (w *WormPlugin) CreateDataStoreStructure(name string) {
 	w.P()
 	w.P(`// `, name, ` - data store`)
 	w.P(`type `, name, ` struct {`)
+	w.P(`db *gorm.DB`)
 	w.P(`}`)
 	functionName := "New" + name
 
 	w.P(`// `, functionName, ` - dataStore constructor`)
-	w.P(`func `, functionName, `(logging bool, maxConnection int) (*`, name, `, error) {`)
+	w.P(`func `, functionName, `() (*`, name, `, error) {`)
 	w.P(`store := &`, name, `{}`)
 	w.P(`db, err := store.connection(os.Getenv("DB_HOST"), os.Getenv("DB_PORT"), os.Getenv("DB_NAME"), os.Getenv("DB_USER"), os.Getenv("DB_PASSWORD"))`)
 	w.P(`if err != nil {`)
 	w.P(`return store, err`)
 	w.P(`}`)
-	w.P(`if maxConnection > 0 {`)
-	w.P(`db.DB().SetMaxIdleConns(maxConnection)`)
+	w.P(`if db == nil {`)
+	w.P(`store.db = db`)
 	w.P(`}`)
-	w.P(`db.LogMode(logging)`)
+	w.P(``)
 	w.P()
 	w.P(`if `, db, ` == nil {`)
 	w.P(db, ` = db`)
@@ -709,7 +719,7 @@ func (w *WormPlugin) generateModelStructures(message *generator.Descriptor, name
 			}
 		} else if isJsonb {
 			w.useJsonb = true
-			w.P(fieldName, ` `, `postgres.Jsonb`, tagString)
+			w.P(fieldName, ` `, `datatypes.JSON`, tagString)
 		} else {
 			w.P(fieldName, ` `, goTyp, tagString)
 		}
@@ -850,12 +860,12 @@ func (w *WormPlugin) ToGormFields(field *descriptor.FieldDescriptorProto, messag
 			w.P(`// convert to Gorm object json message`)
 			w.P(fieldName, `json, err := json.Marshal(e.`, fieldName, `)`)
 			w.P(`if err == nil {`)
-			w.P(`resp.`, fieldName, ` =  postgres.Jsonb{json.RawMessage(`, fieldName, `json)}`)
+			w.P(`resp.`, fieldName, ` =  datatypes.JSON(`, fieldName, `json)`)
 			w.P(`}`)
 
 		} else {
 			w.P(`// convert to Gorm object json message`)
-			w.P(`resp.`, fieldName, ` =  postgres.Jsonb{json.RawMessage(e.`, fieldName, `)}`)
+			w.P(`resp.`, fieldName, ` =  datatypes.JSON(e.`, fieldName, `)`)
 		}
 
 	} else {
@@ -951,7 +961,7 @@ func (w *WormPlugin) ToPBFields(field *descriptor.FieldDescriptorProto, message 
 
 			w.P(`// convert jsonb to string`)
 			w.P(`var `, fieldName, `Str []string`)
-			w.P(`if err := json.Unmarshal([]byte(e.`, fieldName, `.RawMessage), &`, fieldName, `Str); err != nil {`)
+			w.P(`if err := e.`, fieldName, `.Scan( &`, fieldName, `Str); err != nil {`)
 			w.P(`fmt.Println(err)`)
 			w.P(`} else {`)
 			w.P(`resp.`, fieldName, ` = `, fieldName, `Str`)
@@ -1034,7 +1044,7 @@ func (w *WormPlugin) generateEntitiesMethods() {
 
 									w.P(`// convert jsonb from []`)
 									w.P(fieldName, `JsonbBytes, _ := json.Marshal(e.`, fieldName, `)`)
-									w.P(`entity.`, fieldName, ` = postgres.Jsonb{json.RawMessage(`, fieldName, `JsonbBytes)}`)
+									w.P(`entity.`, fieldName, ` = datatypes.JSON(`, fieldName, `JsonbBytes)`)
 
 									continue
 								}
