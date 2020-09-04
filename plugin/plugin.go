@@ -728,6 +728,13 @@ func (w *WormPlugin) generateModelStructures(message *generator.Descriptor, name
 
 	opt, ok = w.getMessageOptions(message)
 	if ok {
+		if model := opt.GetSoftDelete(); model {
+			w.P(`DeletedAt`, ` `, `gorm.DeletedAt`)
+		}
+	}
+
+	opt, ok = w.getMessageOptions(message)
+	if ok {
 		if model := opt.GetModel(); model {
 			w.P(`gorm *gorm.DB`, " `gorm:\"-\"`")
 			w.P(`cacheKey string`, " `gorm:\"-\"`")

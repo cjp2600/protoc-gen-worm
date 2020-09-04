@@ -22,6 +22,7 @@ message WormMessageOptions {
     optional string table = 2;
     optional string merge = 4;
     optional bool migrate = 3;
+    optional bool softDelete = 6;
     optional string convertTo = 5;
 }
 

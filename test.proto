@@ -4,7 +4,7 @@ package main;
 
 import "google/protobuf/timestamp.proto";
 import "github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis/google/api/annotations.proto";
-import "github.com/cjp2600/protoc-gen-worm/plugin/options/worm.proto";
+import "plugin/options/worm.proto";
 
 // role name existing in the system
 enum RoleName {
@@ -244,6 +244,7 @@ message Token {
           model: true
           migrate: true
           convertTo: "User"
+          softDelete: true
     };
 
     string id = 1 [(worm.field).tag = {gorm: "type:uuid;primary_key"}];
