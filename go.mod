@@ -7,6 +7,7 @@ require (
 	github.com/go-redis/redis v6.15.9+incompatible
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/protobuf v1.4.2
+	github.com/json-iterator/go v1.1.10
 	github.com/onsi/ginkgo v1.14.0 // indirect
 	github.com/serenize/snaker v0.0.0-20171204205717-a683aaf2d516
 	google.golang.org/genproto v0.0.0-20200829155447-2bf3329a0021

@@ -117,7 +117,7 @@ func (w *WormPlugin) GenerateImports(file *generator.FileDescriptor) {
 		w.Generator.PrintImport("ptypes", "github.com/golang/protobuf/ptypes")
 	}
 	if w.useJsonb {
-		w.Generator.PrintImport("json", "encoding/json")
+		w.Generator.PrintImport("jsoniter", "github.com/json-iterator/go")
 		w.Generator.PrintImport("datatypes", "gorm.io/datatypes")
 	}
 	if w.useUnsafe {
@@ -865,6 +865,7 @@ func (w *WormPlugin) ToGormFields(field *descriptor.FieldDescriptorProto, messag
 		if field.IsRepeated() && jField.tps == "TYPE_STRING" {
 
 			w.P(`// convert to Gorm object json message`)
+			w.P(`var json = jsoniter.ConfigCompatibleWithStandardLibrary`)
 			w.P(fieldName, `json, err := json.Marshal(e.`, fieldName, `)`)
 			w.P(`if err == nil {`)
 			w.P(`resp.`, fieldName, ` =  datatypes.JSON(`, fieldName, `json)`)
@@ -969,6 +970,7 @@ func (w *WormPlugin) ToPBFields(field *descriptor.FieldDescriptorProto, message 
 			w.P(`// convert jsonb to string`)
 			w.P(`var `, fieldName, `Str []string`)
 
+			w.P(`var json = jsoniter.ConfigCompatibleWithStandardLibrary`)
 			w.P(`if err := json.Unmarshal(e.`, fieldName, `, &`, fieldName, `Str); err != nil {`)
 			w.P(`fmt.Println(err)`)
 			w.P(`} else {`)
@@ -1051,6 +1053,7 @@ func (w *WormPlugin) generateEntitiesMethods() {
 									fieldName = generator.CamelCase(fieldName)
 
 									w.P(`// convert jsonb from []`)
+									w.P(`var json = jsoniter.ConfigCompatibleWithStandardLibrary`)
 									w.P(fieldName, `JsonbBytes, _ := json.Marshal(e.`, fieldName, `)`)
 									w.P(`entity.`, fieldName, ` = datatypes.JSON(`, fieldName, `JsonbBytes)`)
 
