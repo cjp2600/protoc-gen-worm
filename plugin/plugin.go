@@ -321,7 +321,7 @@ func (w *WormPlugin) generateUpdateMethod(message *generator.Descriptor, private
 			w.P(`}`)
 			w.P(`}`)
 
-		} else if strings.ToLower(goTyp) == "*timestamp.timestamp" {
+		} else if strings.EqualFold(goTyp, "*timestamppb.Timestamp") {
 			goTyp = "time.Time"
 			w.useTime = true
 
@@ -662,7 +662,7 @@ func (w *WormPlugin) generateModelStructures(message *generator.Descriptor, name
 		goTyp, _ := w.GoType(message, field)
 		var isJsonb bool
 
-		if oneOf && strings.ToLower(goTyp) == "*timestamp.timestamp" {
+		if oneOf && strings.EqualFold(goTyp, "*timestamppb.Timestamp") {
 			goTyp = "time.Time"
 		}
 		if oneOf {
@@ -700,7 +700,7 @@ func (w *WormPlugin) generateModelStructures(message *generator.Descriptor, name
 
 		if oneOf {
 
-			if strings.ToLower(goTyp) == "*timestamp.timestamp" {
+			if strings.EqualFold(goTyp, "*timestamppb.Timestamp") {
 				w.P(fieldName, ` *time.Time`, tagString)
 				w.useTime = true
 			} else {
@@ -711,7 +711,7 @@ func (w *WormPlugin) generateModelStructures(message *generator.Descriptor, name
 			m, _ := w.goMapTypeCustomGorm(nil, field)
 			w.P(fieldName, ` `, m.GoType, tagString)
 		} else if (field.IsMessage() && !gogoproto.IsCustomType(field) && !gogoproto.IsStdType(field)) || w.IsGroup(field) {
-			if strings.ToLower(goTyp) == "*timestamp.timestamp" {
+			if strings.EqualFold(goTyp, "*timestamppb.Timestamp") {
 				w.P(fieldName, ` time.Time`, tagString)
 				w.useTime = true
 			} else {
@@ -820,7 +820,7 @@ func (w *WormPlugin) ToGormFields(field *descriptor.FieldDescriptorProto, messag
 		w.P(`resp.`, fieldName, ` = tt`, fieldName)
 	} else if (field.IsMessage() && !gogoproto.IsCustomType(field) && !gogoproto.IsStdType(field)) || w.IsGroup(field) {
 
-		if strings.ToLower(goTyp) == "*timestamp.timestamp" && oneof {
+		if strings.EqualFold(goTyp, "*timestamppb.Timestamp") && oneof {
 
 			sourceName := w.GetFieldName(message, field)
 			w.P(`// time oneof`)
@@ -831,7 +831,7 @@ func (w *WormPlugin) ToGormFields(field *descriptor.FieldDescriptorProto, messag
 			w.P(`}`)
 			w.P(``)
 
-		} else if strings.ToLower(goTyp) == "*timestamp.timestamp" {
+		} else if strings.EqualFold(goTyp, "*timestamppb.Timestamp") {
 			w.useTime = true
 			w.P(`// create time object`)
 			w.P(`ut`, fieldName, ` := time.Unix(e.`, fieldName, `.GetSeconds(), int64(e.`, fieldName, `.GetNanos()))`)
@@ -927,7 +927,7 @@ func (w *WormPlugin) ToPBFields(field *descriptor.FieldDescriptorProto, message 
 
 	} else if (field.IsMessage() && !gogoproto.IsCustomType(field) && !gogoproto.IsStdType(field)) || w.IsGroup(field) {
 
-		if strings.ToLower(goTyp) == "*timestamp.timestamp" && oneof {
+		if strings.EqualFold(goTyp, "*timestamppb.Timestamp") && oneof {
 
 			sourceName := w.GetFieldName(message, field)
 			interfaceName := w.Generator.OneOfTypeName(message, field)
@@ -935,7 +935,7 @@ func (w *WormPlugin) ToPBFields(field *descriptor.FieldDescriptorProto, message 
 			w.useTime = true
 			w.P(`resp.`, sourceName, ` = &`, interfaceName, `{ptap`, fieldName, `}`)
 
-		} else if strings.ToLower(goTyp) == "*timestamp.timestamp" && !oneof {
+		} else if strings.EqualFold(goTyp, "*timestamppb.Timestamp") && !oneof {
 
 			w.P(`ptap`, fieldName, `, _ := ptypes.TimestampProto(e.`, fieldName, `)`)
 			w.useTime = true
